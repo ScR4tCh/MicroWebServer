@@ -38,7 +38,6 @@
             android:gravity="center_vertical"
             android:text="Large Text"
             android:textAppearance="?android:attr/textAppearanceLarge" />
-
     </RelativeLayout>
 
     <ListView
@@ -46,7 +45,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@id/relativeLayout1" >
-
     </ListView>
 
 </RelativeLayout>
