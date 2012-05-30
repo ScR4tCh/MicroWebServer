@@ -65,6 +65,7 @@ public class ZHTMLZemInterpreter extends Interpreter
 		for(int i=0;i<getp.length;i++)
 			elements.add(new ZemString(getp[i]));
 		
+		symbolTable.put("dateFormat", new DateFormatFunction());
 		symbolTable.put("getPath", new ZemArray(elements));
 		symbolTable.put("getTime", new GetTimeFunction());
 		symbolTable.put("getUptime", new GetUptimeFunction(this.wb.getServer()));

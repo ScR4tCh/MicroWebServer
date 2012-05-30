@@ -11,34 +11,50 @@
  */
 package org.scratch.microwebserver.http.zeminterface;
 
+import java.text.SimpleDateFormat;
+
 import net.zeminvaders.lang.Interpreter;
 import net.zeminvaders.lang.SourcePosition;
-import net.zeminvaders.lang.runtime.ZemNumber;
 import net.zeminvaders.lang.runtime.ZemObject;
+import net.zeminvaders.lang.runtime.ZemString;
 
-public class GetTimeFunction extends MicroWebServerFunction
+public class DateFormatFunction extends MicroWebServerFunction
 {	
-	
-	public GetTimeFunction()
+	public DateFormatFunction()
 	{
 	}
 
 	@Override
-	public ZemObject eval(Interpreter interpreter,SourcePosition pos) throws ZHTMLException
+	public int compareTo(ZemObject o)
 	{
-		return new ZemNumber(System.currentTimeMillis());
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	@Override
+	public ZemObject eval(Interpreter interpreter,SourcePosition pos)
+	{
+		String format = interpreter.getVariable("format", pos).toZString().toString();
+		long millis = interpreter.getVariable("millis",pos).toNumber(pos).longValue();
+		
+		SimpleDateFormat sdf = new SimpleDateFormat(format);
+		
+		return new ZemString(sdf.format(millis));
 	}
 
 	@Override
 	public int getParameterCount()
 	{
-		return 0;
+		return 2;
 	}
 
 	@Override
 	public String getParameterName(int index)
 	{
-		return null;
+		if(index==0)
+			return "format";
+		else
+			return "millis";
 	}
 
 }

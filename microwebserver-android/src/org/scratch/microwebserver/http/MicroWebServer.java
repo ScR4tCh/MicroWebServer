@@ -13,10 +13,13 @@ package org.scratch.microwebserver.http;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.net.SocketException;
 import java.util.Vector;
 
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
+
+import android.os.SystemClock;
 
 
 public class MicroWebServer implements Runnable
@@ -53,7 +56,7 @@ public class MicroWebServer implements Runnable
 			list.start();
 		}
 		
-		startTime=System.nanoTime();
+		startTime=System.currentTimeMillis();
 	}
 	
 	
@@ -64,7 +67,8 @@ public class MicroWebServer implements Runnable
 			try
 			{
 				WebConnection conn = new WebConnection(ssock.accept(),this);
-				connections.add(conn);
+				if(conn!=null)
+					connections.add(conn);
 				
 			} catch (IOException e)
 			  {
@@ -105,9 +109,9 @@ public class MicroWebServer implements Runnable
 			{
 				ssock.close();
 			}
-			catch(IOException e)
+			catch(Exception e)
 			{
-				//just don't care !
+				//just don't care !!!
 			}
 			webworker.join();
 		}
@@ -120,13 +124,13 @@ public class MicroWebServer implements Runnable
 
 	public long getUptime()
 	{
-		return (System.nanoTime()-startTime);
+		return (System.currentTimeMillis()-startTime);
 	}
 	
-	public void log(int level,WebConnection wc,String msg)
+	public void log(long t,int level,WebConnection wc,String msg)
 	{
 		for(int i=0;i<wbls.size();i++)
-			wbls.elementAt(i).log(level,wc.getRequestingAddr(),wc.getRequest(),msg);
+			wbls.elementAt(i).log(t,level,wc.getRequestingAddr(),wc.getRequest(),msg);
 	}
 	
 	public void addWebConnectionListener(WebConnectionListener wcl)

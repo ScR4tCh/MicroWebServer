@@ -11,11 +11,18 @@
  */
 package org.scratch.microwebserver;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.util.Vector;
 
 import org.scratch.microwebserver.http.MicroWebServer;
 import org.scratch.microwebserver.http.WebConnectionListener;
 import org.scratch.microwebserver.properties.PropertyNames;
+import org.scratch.microwebserver.properties.ServerProperties;
 
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -38,10 +45,26 @@ public class MicrowebserverService extends Service implements WebConnectionListe
 	private MicroWebServer server;
 	private final IBinder binder=new MicrowebserverServiceBinder();
 	
+	private String logfile = PropertyNames.LOGGERNAME+".log";
+	private PrintWriter logWriter;
+	
+	private Vector<ServiceListener> listeners = new Vector<ServiceListener>();
+	
+	private long startTime=0;
+	
 	protected class MicrowebserverServiceBinder extends Binder
 	{
 		public boolean startServer()
 		{
+			try
+			{
+				logWriter = new PrintWriter(new OutputStreamWriter(new FileOutputStream(ServerProperties.getRoot()+File.separator+logfile,true)));
+			}
+			catch(FileNotFoundException e1)
+			{
+				e1.printStackTrace();
+			}
+			
 			try
 			{
 				server=new MicroWebServer();
@@ -65,6 +88,8 @@ public class MicrowebserverService extends Service implements WebConnectionListe
 			}
 			
 			mNotificationManager.cancel(APPICON_ID);
+			
+			logWriter.close();
 		}
 
 		public boolean isServerUp()
@@ -73,6 +98,26 @@ public class MicrowebserverService extends Service implements WebConnectionListe
 				return server.isOnline();
 			
 			return false;
+		}
+
+		public String getLogFile()
+		{
+			return ServerProperties.getRoot()+File.separator+logfile;
+		}
+		
+		public void registerServiceListener(ServiceListener sl)
+		{
+			listeners.add(sl);
+		}
+		
+		public void unregisterServiceListener(ServiceListener sl)
+		{
+			listeners.remove(sl);
+		}
+
+		public long getServerStartTime()
+		{
+			return MicrowebserverService.this.startTime;
 		}
 	}
 	
@@ -92,6 +137,8 @@ public class MicrowebserverService extends Service implements WebConnectionListe
 	{
 		super.onCreate();
 		
+		startTime=System.currentTimeMillis();
+		
 		mNotificationManager=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
 		notificationBuilder = new NotificationCompat.Builder(this);
 	}
@@ -103,10 +150,25 @@ public class MicrowebserverService extends Service implements WebConnectionListe
 	}
 
 	@Override
-	public void log(int lev,String client,String request,String msg)
+	public void log(long t,int lev,String client,String request,String msg)
 	{
-		// TODO Auto-generated method stub
+		/**
+		 * LOG FORMAT:
+		 * 
+		 * time(ms)|level|msg|addr|req
+		 * 
+		 */
+		logWriter.println(t+"|"+lev+"|"+msg+"|"+client+"|"+request);
+		if(logWriter.checkError())
+		{
+			LogEntry le = new LogEntry(System.currentTimeMillis(),WebConnectionListener.LOGLEVEL_ERROR,"there was an error while writing to the logfile","","SERVER");
+			for(int i=0;i<listeners.size();i++)
+				listeners.elementAt(i).log(le);
+		}
 		
+		LogEntry le = new LogEntry(t,lev,msg,request,client);
+		for(int i=0;i<listeners.size();i++)
+			listeners.elementAt(i).log(le);
 	}
 
 }

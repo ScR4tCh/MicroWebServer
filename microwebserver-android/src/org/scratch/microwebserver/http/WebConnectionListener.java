@@ -19,5 +19,5 @@ public interface WebConnectionListener
 	public static final int LOGLEVEL_WARN=3;
 	public static final int LOGLEVEL_ERROR=4;
 	
-	public void log(int lev,String client,String request,String msg);
+	public void log(long t,int lev,String client,String request,String msg);
 }

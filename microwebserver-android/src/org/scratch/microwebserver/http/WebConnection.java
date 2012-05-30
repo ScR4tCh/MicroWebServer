@@ -33,19 +33,27 @@ import java.io.OutputStream;
 import java.net.FileNameMap;
 import java.net.Socket;
 import java.net.URLConnection;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Vector;
 
+import org.scratch.microwebserver.data.Cache;
 import org.scratch.microwebserver.data.DBManager;
 import org.scratch.microwebserver.http.zeminterface.ZHTMLException;
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
+import org.scratch.microwebserver.util.Helper;
 
 
 public class WebConnection
 {
+	private static final String IDENTIFIER="ScR4tCh MicroWebServer Android";
+	
+	
 	private static final String EOL=(char)13+""+(char)10;
 	
 	//TODO: auto generate Error pages !
@@ -171,10 +179,40 @@ public class WebConnection
 			}
 			else
 			{
-				reply(403,"Forbidden","text/html","utf-8",P403);
-				return;
+				if(!ServerProperties.getInstance().getBoolean(PropertyNames.ALLOW_DIRLIST))
+				{
+					log(WebConnectionListener.LOGLEVEL_NORMAL,"dir listing requested, but not allowed");
+					reply(403,"Forbidden","text/html","utf-8",P403);
+					return;
+				}
+				else
+				{
+					if(Helper.isSymlink(f) && !ServerProperties.getInstance().getBoolean(PropertyNames.FOLLOW_SYMLINKS))
+					{
+						//403
+					}
+					else
+					{
+						// do listing !
+						send("HTTP/1.1 200");
+						send("Server: "+IDENTIFIER);
+						send("Content-Type: text/html");
+						
+						StringBuffer list = doDirList(f);
+						
+						byte[] sb = list.toString().getBytes();
+						send("Content-Length: "+sb.length);
+						
+						send("");
+						send(sb);
+						close();
+						return;
+					}
+				}
 			}
 		}
+		
+		//TODO: check for .htaccess if parsing htaccess is enabled !
 		
 		if(f.exists() && f.isFile())
 		{
@@ -200,13 +238,14 @@ public class WebConnection
 					sendBuffer.append(ZHTMProcessor.process(this,sb));
 				}catch(ZHTMLException e)
 				 {
+					log(WebConnectionListener.LOGLEVEL_WARN,e.getReplyCode()+" "+getCodeDescription(e.getReplyCode())+" "+e.getMessage());
 					reply(e.getReplyCode(),e.getMessage(),"text/html","utf-8","<html><head><title>ERROR</title></head><body><h1>"+e.getReplyCode()+" "+getCodeDescription(e.getReplyCode())+"</h1>"+e.getMessage().replace("\n","<br/>")+"</body></html>");
 					return;
 				 }
 				
 				send("HTTP/1.1 "+statuscode);
 				sendExtras();
-				send("Server: scr4tch micro web server");
+				send("Server: "+IDENTIFIER);
 				
 				
 				if(statuscode>=200 && statuscode<300)
@@ -235,25 +274,7 @@ public class WebConnection
 			}
 			else
 			{
-				//System.err.println("REQUEST STD FILE ! "+params[1]);
-				
-				send("HTTP/1.1 200");
-				send("Server: scr4tch micro web server");
-				send("Content-Type: "+getMimeType("file://"+params[1]));
-				byte[] fbuffer = new byte[4096];
-				InputStream fin = new FileInputStream(f);
-				int r;
-				send("Content-Length: "+fin.available());
-				send("");
-				out.write(outBuffer.toString().getBytes());
-				
-				outBuffer=new StringBuffer();
-				
-				while((r=fin.read(fbuffer))>0)
-				{
-					out.write(fbuffer,0,r);
-				}
-				fin.close();
+				serveFile(f);
 			}
 			
 			close();
@@ -266,7 +287,7 @@ public class WebConnection
 				{
 					WebServiceReply ret = services.invoke(params[1],post?WebServices.METHOD_POST:WebServices.METHOD_GET,mimetype,this);
 					send("HTTP/1.1 200");
-					send("Server: scr4tch micro web server");
+					send("Server: "+IDENTIFIER);
 					send("Content-Type: "+ret.getMime());
 					send("Content-Length: "+ret.getLength());
 					send("");
@@ -280,15 +301,116 @@ public class WebConnection
 				{
 					//wse.printStackTrace();
 					//TODO: auto generate Error pages ! [OR: read from FS -> config "page overrides"]
+					log(WebConnectionListener.LOGLEVEL_WARN,wse.getReplyCode()+" "+getCodeDescription(wse.getReplyCode())+" "+params[1]);
 					reply(wse.getReplyCode(),wse.getMessage(),"text/html","utf-8","");
 				}
 			}
 			else
 			{
-				log(WebConnectionListener.LOGLEVEL_NORMAL,"404 NOT FOUND : "+params[1]);
-				reply(404,"Not Found","text/html","utf-8",P404);
+				//last try ... does a cached file exist ?
+				if(Cache.getInstance().has(params[1]))
+				{
+					serveFile(Cache.getInstance().getCached(params[1]));
+				}
+				else
+				{
+					log(WebConnectionListener.LOGLEVEL_NORMAL,"404 NOT FOUND : "+params[1]);
+					reply(404,"Not Found","text/html","utf-8",P404);
+				}
 			}
 		}
+	}
+	
+	private void serveFile(File f) throws IOException
+	{
+		//System.err.println("REQUEST STD FILE ! "+params[1]);
+		
+		send("HTTP/1.1 200");
+		send("Server: "+IDENTIFIER);
+		send("Content-Type: "+getMimeType("file://"+params[1]));
+		byte[] fbuffer = new byte[4096];
+		InputStream fin = new FileInputStream(f);
+		int r;
+		send("Content-Length: "+fin.available());
+		send("");
+		out.write(outBuffer.toString().getBytes());
+		
+		outBuffer=new StringBuffer();
+		
+		while((r=fin.read(fbuffer))>0)
+		{
+			out.write(fbuffer,0,r);
+		}
+		fin.close();
+	}
+
+	private StringBuffer doDirList(File f)
+	{
+		StringBuffer dl = new StringBuffer();
+		
+		dl.append("<html>\n\t<head><title>Index of "+params[1]+"</title></head>\n\t<body>\n");
+		
+		Vector<File> files = new Vector<File>(Arrays.asList(f.listFiles()));
+		
+		
+		log(WebConnectionListener.LOGLEVEL_DEBUG,"create dir listing: "+f.getAbsolutePath()+"    "+files.size()+" files");
+		
+		Collections.sort(files,new Comparator<File>()
+								{
+									@Override
+									public int compare(File one,File two)
+									{
+										if(one.isDirectory() && !two.isDirectory())
+										{
+											return -1;
+										}
+										else if(!one.isDirectory() && two.isDirectory())
+										{
+											return 1;
+										}
+										else
+										{
+											return one.compareTo(two);
+										}
+									}
+									
+								});
+		
+		dl.append("\t\t<h1>Index of "+params[1]+"</h1>\n\t\t<pre><hr/>\n");
+		
+		for(int i=0;i<files.size();i++)
+		{	
+			
+			String ico="";
+			
+			if(files.elementAt(i).isDirectory())
+				ico=ServerProperties.getInstance().getString(PropertyNames.DEFAULT_FOLDER_ICON);
+			else
+				ico=ServerProperties.getInstance().getString(PropertyNames.DEFAULT_FILE_ICON);
+			
+			String shrtn = files.elementAt(i).getName();
+			
+			if(files.elementAt(i).isDirectory())
+				shrtn+="/";
+			
+			if(shrtn.length()>23)
+			{
+				shrtn = shrtn.substring(0,20)+"..&gt;";
+			}
+			
+			String space="";
+			if(shrtn.length()<26)
+			{
+				for(int l=shrtn.length();l<27;l++)
+					space+=" ";
+			}
+			
+			dl.append("<image src=\""+ico+"\">  <a alt=\""+files.elementAt(i).getName()+"\" href=\""+params[1]+files.elementAt(i).getName()+"\">"+shrtn+"</a>"+space+" "+Helper.stdDateFormat(files.elementAt(i).lastModified())+" "+Helper.fileSizeFormat(files.elementAt(i).length())+"\n");
+		}
+		
+		dl.append("\t\t<hr/></pre>\n\t<p>"+IDENTIFIER+"</p></body>\n</html>\n");
+		
+		return dl;
 	}
 
 	private void processCookies(String cookie)
@@ -312,7 +434,13 @@ public class WebConnection
 	private void send(String command) throws IOException
 	{
 		outBuffer.append(command+EOL);
-	}		
+	}
+	
+	private void send(byte[] b) throws IOException
+	{
+		//FIXME: not that good ....
+		outBuffer.append(new String(b));
+	}
 
 	public BufferedReader getPostData()
 	{
@@ -358,7 +486,7 @@ public class WebConnection
 		outBuffer=new StringBuffer();
 		send("HTTP/1.1 "+no+" "+id);
 		send("Cache-Control: no-cache");
-		send("Server: scr4tch micro web server");
+		send("Server: "+IDENTIFIER);
 		send("Content-Type: "+content+"; charset="+charset);
 		send("");
 		send(message);
@@ -472,7 +600,7 @@ public class WebConnection
 	
 	private void log(int lev,String msg)
 	{
-		server.log(lev,this,msg);
+		server.log(System.currentTimeMillis(),lev,this,msg);
 	}
 	
 	public String getRequestingAddr()

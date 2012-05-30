@@ -16,30 +16,34 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.util.Collections;
-import java.util.Iterator;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Vector;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.zip.GZIPInputStream;
 
+import org.scratch.microwebserver.http.WebConnectionListener;
+
+import android.content.Context;
 import android.database.DataSetObserver;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.ListAdapter;
+import android.widget.TextView;
+
+import static ch.lambdaj.Lambda.*;
+import static org.hamcrest.Matchers.*;
 
 public class LogEntryAdapter implements ListAdapter
 {
 	private int minlevel=-1,maxlevel=-1;
 	private long bwhistory;
-	private long created;
+	private long createTime;
 	
 	private String logfile;
-	private PrintWriter logout;
 	
-	private ConcurrentMap<Long,ConcurrentMap<Integer,Vector<LogEntry>>> logs = new ConcurrentHashMap<Long,ConcurrentMap<Integer,Vector<LogEntry>>>();
-	private Vector<LogEntry> wLogs = new Vector<LogEntry>();
+	private Vector<LogEntry> logs;
+	private Vector<LogEntry> workingSet;
 	
 	private Vector<DataSetObserver> observers = new Vector<DataSetObserver>();
 	
@@ -48,19 +52,28 @@ public class LogEntryAdapter implements ListAdapter
 	 * @param refreshRate	the refresh rate the logfile should be polled for logs (-1 for direct update)
 	 * @param maxhistory  the maximum "backward history" in milliseconds [UTC]
 	 */
-	public LogEntryAdapter(String logfile,long refreshRate,long maxhistory)
+	public LogEntryAdapter(String logfile,long createTime,long maxhistory)
 	{
-		created=System.nanoTime()/1000;
-		bwhistory=created-maxhistory;
+		this.createTime=createTime;
+		bwhistory=createTime-maxhistory;
 		
 		this.logfile=logfile;
+		
+		readLog();
+			
+	}
+	
+	private void readLog()
+	{
+		logs = new Vector<LogEntry>();
+		workingSet = new Vector<LogEntry>();
 		
 		File fi = new File(logfile);
 		if(fi.exists())
 		{
 			try
 			{
-				BufferedReader bin = new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(fi))));
+				BufferedReader bin = new BufferedReader(new InputStreamReader(new FileInputStream(fi)));
 			
 				String line;
 				/**
@@ -77,26 +90,16 @@ public class LogEntryAdapter implements ListAdapter
 						long t = Long.parseLong(cols[0]);
 						
 						//skip stuff we don't care about !!!
-						if(t<bwhistory)
+						if(t<bwhistory || bwhistory==-1)
 							continue;
 						
 						int l = Integer.parseInt(cols[1]);
 						
-						if(!logs.containsKey(t))
-						{
-							ConcurrentMap<Integer,Vector<LogEntry>> c = new ConcurrentHashMap<Integer,Vector<LogEntry>>();
-							logs.put(t,c);
-						}
-						
-						if(!logs.get(t).containsKey(l))
-						{
-							logs.get(t).put(l,new Vector<LogEntry>());
-						}
-						
 						LogEntry le = new LogEntry(t,l,cols[2],cols[4],cols[3]);
 						
-						wLogs.add(le);
-						logs.get(t).get(l).add(le);
+						logs.add(le);
+						if(checkLevel(le))
+							workingSet.add(le);
 					}
 				}
 			}
@@ -105,22 +108,16 @@ public class LogEntryAdapter implements ListAdapter
 				
 			}
 		}
-			
 	}
 	
-	public void log(LogEntry le)
+	public void filter(long maxhistory)
 	{
-		//FIXME: consider time sorts !
-		wLogs.add(le);		
-	}
-	
-	private void informObservers(boolean justChange)
-	{
-		for(int i=0;i<observers.size();i++)
-			if(justChange)
-				observers.elementAt(i).onChanged();
-			else
-				observers.elementAt(i).onInvalidated();
+		if(maxhistory==-1)
+			bwhistory=-1;
+		else
+			bwhistory=createTime-maxhistory;
+		
+		readLog();
 	}
 	
 	public void filter(int minlevel,int maxlevel)
@@ -128,22 +125,53 @@ public class LogEntryAdapter implements ListAdapter
 		this.minlevel=minlevel;
 		this.maxlevel=maxlevel;
 		
-		//TODO: rebuild wLogs !
+		workingSet=new Vector<LogEntry>(select(logs, having(on(LogEntry.class).getLevel(),allOf(anyOf(greaterThanOrEqualTo(this.minlevel),is(-1)),anyOf(lessThanOrEqualTo(this.maxlevel),is(-1))))));
+	}
+	
+	private boolean checkLevel(LogEntry le)
+	{
+		if((le.getLevel()>=minlevel||minlevel==-1) && (le.getLevel()<=maxlevel||maxlevel==-1))
+			return true;
 		
-		informObservers(false);
+		return false;
+	}
+	
+	private boolean checkT(LogEntry le)
+	{
+		//TODO: "filter time"
+		return true;
+	}
+
+	public void log(LogEntry le)
+	{
+		logs.add(le);
+		
+		if(checkLevel(le) && checkT(le))
+		{
+			workingSet.add(le);
+			//informObservers(true);
+		}
+	}
+	
+
+	public void informObservers()
+	{
+		for(int i=0;i<observers.size();i++)
+				observers.elementAt(i).onChanged();
+			
 	}
 	
 	@Override
 	public int getCount()
 	{
-		return wLogs.size();
+		return workingSet.size();
 	}
 	
 
 	@Override
 	public Object getItem(int position)
 	{
-		return wLogs.elementAt(position);
+		return workingSet.elementAt(position);
 	}
 
 	@Override
@@ -155,15 +183,87 @@ public class LogEntryAdapter implements ListAdapter
 	@Override
 	public int getItemViewType(int position)
 	{
-		// TODO Auto-generated method stub
-		return 0;
+		return R.layout.logentry;
 	}
 
 	@Override
 	public View getView(int position,View convertView,ViewGroup parent)
 	{
-		// TODO Auto-generated method stub
-		return null;
+		 View v = convertView;
+	        
+	        if (v == null)
+	        {
+	            LayoutInflater vi = (LayoutInflater)parent.getContext().getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+	            v = vi.inflate(R.layout.logentry, null);
+	        }
+	        
+	        if(position%2==0)
+	        	v.setBackgroundResource(android.R.drawable.divider_horizontal_bright);
+	        
+	        LogEntry le = logs.get(position);
+	        
+	        if (le != null)
+	        {
+	        	 	TextView logdate = (TextView) v.findViewById(R.id.logDate);
+	                TextView logtext = (TextView) v.findViewById(R.id.logtext);
+	                TextView logclient = (TextView) v.findViewById(R.id.logClient);
+	                
+	                ImageView level = (ImageView) v.findViewById(R.id.levelIco);
+	                
+	                if (logdate != null)
+	                {
+	                	logdate.setText(SimpleDateFormat.getInstance().format(new Date(le.getT())));
+	                }
+	                
+	                if (logclient != null)
+	                {
+	                	logclient.setText(le.getRemoteAddress());
+	                }
+	                
+	                if (logtext != null)
+	                {
+	                	logtext.setText(le.getMessage());
+	                }       
+	                
+	                if(level!=null)
+	                {
+	                	
+	                	switch(le.getLevel())
+	                	{
+	                		default:	break;
+	                		case WebConnectionListener.LOGLEVEL_DEBUG:	level.setImageResource(android.R.drawable.ic_dialog_info);
+	                													level.setColorFilter(0xFF0000FF,android.graphics.PorterDuff.Mode.MULTIPLY);
+	                													logtext.setTextColor(0xFF0000FF);
+	                													break;
+	                		
+	                		case WebConnectionListener.LOGLEVEL_INFO:	level.setImageResource(android.R.drawable.ic_dialog_info);
+												                		level.setColorFilter(0xFFFFFFFF,android.graphics.PorterDuff.Mode.MULTIPLY);
+												                		logtext.setTextColor(0xFFFFFFFF);
+																		break;
+	                		
+	                		case WebConnectionListener.LOGLEVEL_NORMAL:	level.setImageResource(android.R.drawable.ic_dialog_info);
+												                		level.setColorFilter(0xFF00FF00,android.graphics.PorterDuff.Mode.MULTIPLY);
+												                		logtext.setTextColor(0xFF00FF00);
+																		break;
+	                		
+	                		case WebConnectionListener.LOGLEVEL_WARN:	level.setImageResource(android.R.drawable.ic_dialog_alert);
+												                		level.setColorFilter(0xFFFF9900,android.graphics.PorterDuff.Mode.MULTIPLY);
+												                		logtext.setTextColor(0xFFFF9900);
+																		break;
+	                		
+	                		
+	                		case WebConnectionListener.LOGLEVEL_ERROR:	level.setImageResource(android.R.drawable.ic_dialog_alert);
+												                		level.setColorFilter(0xFF000000,android.graphics.PorterDuff.Mode.MULTIPLY);
+												                		logtext.setTextColor(0xFF000000);
+																		break;
+	                			
+	                	}
+	                	
+	                }           
+	                
+	        }
+	        
+	        return v;
 	}
 
 	@Override
@@ -181,7 +281,7 @@ public class LogEntryAdapter implements ListAdapter
 	@Override
 	public boolean isEmpty()
 	{
-		return wLogs.size()==0;
+		return workingSet.size()==0;
 	}
 
 	@Override

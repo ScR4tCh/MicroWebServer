@@ -4,15 +4,6 @@
     android:layout_height="fill_parent"
     android:orientation="vertical" >
 
-    <ImageView
-        android:id="@+id/imageView1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentRight="true"
-        android:alpha="0.2"
-        android:src="@drawable/ic_launcher" />
-
     <RelativeLayout
         android:id="@+id/relativeLayout1"
         android:layout_width="match_parent"
@@ -23,16 +14,16 @@
 
         <ImageView
             android:id="@+id/StatusImage"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentLeft="true"
-            android:layout_alignParentTop="true"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:scaleType="fitXY"
             android:src="@drawable/indicator_stopped" />
 
         <TextView
             android:id="@+id/statusText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_alignBottom="@+id/StatusImage"
             android:layout_alignParentRight="true"
             android:layout_alignParentTop="true"
             android:gravity="center_vertical"
@@ -40,11 +31,43 @@
             android:textAppearance="?android:attr/textAppearanceLarge" />
     </RelativeLayout>
 
+    <TextView
+        android:id="@+id/logCapt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/relativeLayout1"
+        android:layout_marginBottom="10dp"
+        android:text="Logs:"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+
     <ListView
         android:id="@+id/logList"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@id/relativeLayout1" >
+        android:layout_above="@+id/foot"
+        android:layout_below="@+id/logCapt" 
+        android:transcriptMode="alwaysScroll" >
+
     </ListView>
+
+    <TextView
+        android:id="@+id/foot"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentLeft="true"
+        android:layout_marginTop="10dp"
+        android:gravity="center_vertical"
+        android:text=""
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+
+    <ImageView
+        android:id="@+id/imageView1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentRight="true"
+        android:alpha="0.2"
+        android:src="@drawable/ic_launcher" />
 
 </RelativeLayout>
