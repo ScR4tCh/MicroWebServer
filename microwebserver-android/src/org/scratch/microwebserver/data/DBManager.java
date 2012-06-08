@@ -15,7 +15,11 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.*;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.Vector;
 
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
@@ -33,8 +37,9 @@ public class DBManager
 	private static final String JDBC_DRIVER="com.lemadi.storage.database.sqldroid.SqldroidDriver";
 	private static final String CONNECT_URI="jdbc:sqldroid:";
 	
-	
 	private static final Object instanceLock = new Object();
+	
+	private Set<String> tables = new HashSet<String>();
 	
 	protected DBManager(String database)
 	{
@@ -56,7 +61,16 @@ public class DBManager
 			stmt.execute("PRAGMA synchronous = 0");
 			
 			stmt.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT,username VARCHAR[64] NOT NULL,password CHAR[32] NOT NULL,rights INTEGER)");
+			stmt.execute("CREATE TABLE IF NOT EXISTS tablesecurity (tablename VARCHAR[256] NOT NULL,user INTEGER,dbrights INTEGER)");
 			stmt.execute("CREATE TABLE IF NOT EXISTS tokens (userid INTEGER PRIMARY KEY,expire LONG,token CHAR[32])");
+			
+			//NOTE: SQLITE ONLY
+			result=stmt.executeQuery("SELECT name FROM sqlite_master WHERE type='table'");
+			while(result.next())
+			{
+				tables.add(result.getString("name"));
+			}
+			
 			
 			//TEST ONLY !
 			fillTestData();
@@ -74,6 +88,54 @@ public class DBManager
 		int rights1=0;
 		rights1|=Rights.WEBACCESS;
 		stmt.execute("INSERT INTO users      (username,password,rights) 			  VALUES (\"root\",\""+encode("42")+"\","+rights1+")");
+	}
+	
+	@SuppressWarnings("unused")
+	private boolean checkTableUserRight(int user,String table,Statement st) throws SQLException
+	{
+		if(!tables.contains(table))
+		{
+			return false;
+		}
+		else
+		{
+			return false;
+		}
+	}
+	
+	public Vector<TreeMap<String,Object>> doQuery(String q) throws SQLException
+	{
+		Vector<TreeMap<String, Object>> ret = new Vector<TreeMap<String,Object>>();
+		
+		ResultSet rs = stmt.executeQuery(q);
+		int cc = rs.getMetaData().getColumnCount();
+		
+		Vector<String> cn = new Vector<String>();
+		for(int i=0;i<cc;i++)
+		{
+			cn.add(rs.getMetaData().getColumnName(i));
+		}
+		
+		
+		long j=1;
+		
+		while(rs.next())
+		{
+			TreeMap<String,Object> tm = new TreeMap<String,Object>();
+			
+			for(int i=-1;i<cc;i++)
+			{
+				if(i==-1)
+					tm.put("*",j);
+				else
+					tm.put(cn.elementAt(i),rs.getObject(i));
+			}
+			
+			ret.add(tm);
+			j++;
+		}
+		
+		return ret;
 	}
 	
 	private String encode(String what)
@@ -148,7 +210,7 @@ public class DBManager
 			int userid=result.getInt("userid");
 			result=stmt.executeQuery("SELECT username,password FROM users WHERE id="+userid);
 			String ntoken=encode(result.getString("username")+result.getString("password")+System.currentTimeMillis());
-			long exp=System.currentTimeMillis()+ServerProperties.getInstance().getLong(PropertyNames.TOKEN_EXPIRATION);
+			long exp=System.currentTimeMillis()+ServerProperties.getInstance().getLong(PropertyNames.TOKEN_EXPIRATION.toString());
 			stmt.execute("UPDATE tokens SET token=\""+ntoken+"\",expire="+exp+" WHERE userid="+userid);
 				
 			return ntoken;
@@ -183,7 +245,7 @@ public class DBManager
 				//TODO: update token expiration
 				int userid=result.getInt("id");
 				String token=encode(username+password+System.currentTimeMillis());
-				long exp=System.currentTimeMillis()+ServerProperties.getInstance().getLong(PropertyNames.TOKEN_EXPIRATION);
+				long exp=System.currentTimeMillis()+ServerProperties.getInstance().getLong(PropertyNames.TOKEN_EXPIRATION.toString());
 				
 				result=stmt.executeQuery("SELECT userid FROM tokens WHERE userid=\""+userid+"\"");
 				if(result.next())

@@ -11,6 +11,9 @@
  */
 package org.scratch.microwebserver.util;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+
 /**
  * <p>
  * Encodes and decodes to and from Base64 notation.
@@ -601,7 +604,7 @@ public class Base64
 
 		// Isolate options
 		int gzip=(options&GZIP);
-		int dontBreakLines=(options&DONT_BREAK_LINES);
+		//int dontBreakLines=(options&DONT_BREAK_LINES);
 
 		try
 		{
@@ -1530,6 +1533,7 @@ public class Base64
 		private int lineLength;
 		private boolean breakLines; // Break lines at less than 80 characters
 		private int options; // Record options used to create the stream.
+		@SuppressWarnings("unused")
 		private byte[] alphabet; // Local copies to avoid extra method calls
 		private byte[] decodabet; // Local copies to avoid extra method calls
 
@@ -1771,6 +1775,7 @@ public class Base64
 		private byte[] b4; // Scratch used in a few places
 		private boolean suspendEncoding;
 		private int options; // Record for later
+		@SuppressWarnings("unused")
 		private byte[] alphabet; // Local copies to avoid extra method calls
 		private byte[] decodabet; // Local copies to avoid extra method calls
 
@@ -1982,5 +1987,22 @@ public class Base64
 		} // end resumeEncoding
 
 	} // end inner class OutputStream
+
+	public static String encodeInputStream(java.io.InputStream inputStream) throws IOException
+	{
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		byte[] buf = new byte[4069];
+		int r;
+		
+		while((r=inputStream.read(buf))>0)
+		{			
+			out.write(buf,0,r);
+			
+		}
+		out.flush();
+		inputStream.close();
+		
+		return encodeBytes(out.toByteArray());
+	}
 
 } // end class Base64

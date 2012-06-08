@@ -10,7 +10,7 @@
         android:layout_height="wrap_content"
         android:layout_marginLeft="10dp"
         android:layout_marginRight="10dp"
-        android:paddingBottom="15dp" >
+        android:paddingTop="5dp" >
 
         <ImageView
             android:id="@+id/StatusImage"
@@ -31,7 +31,7 @@
             android:textAppearance="?android:attr/textAppearanceLarge" />
     </RelativeLayout>
 
-    <TextView
+    <!-- <TextView
         android:id="@+id/logCapt"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -48,7 +48,18 @@
         android:layout_below="@+id/logCapt" 
         android:transcriptMode="alwaysScroll" >
 
-    </ListView>
+    </ListView>-->
+    <com.viewpagerindicator.TitlePageIndicator
+		android:id="@+id/pagertitles"
+		android:layout_height="wrap_content"
+		android:layout_width="fill_parent"
+		android:layout_below="@id/relativeLayout1"/>
+    <android.support.v4.view.ViewPager
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_above="@+id/foot"
+		android:layout_below="@+id/pagertitles"
+		android:id="@+id/pager"/>
 
     <TextView
         android:id="@+id/foot"
@@ -56,7 +67,7 @@
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_alignParentLeft="true"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="5dp"
         android:gravity="center_vertical"
         android:text=""
         android:textAppearance="?android:attr/textAppearanceMedium" />

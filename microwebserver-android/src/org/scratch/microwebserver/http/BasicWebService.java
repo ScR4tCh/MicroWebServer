@@ -27,7 +27,7 @@ public abstract class BasicWebService implements WebService
 	public static final String MIME_URLE="application/x-www-form-urlencoded";
 	
 	
-	protected DBManager database = DBManager.getInstance(ServerProperties.getInstance().getString(PropertyNames.DATABASE_URL));
+	protected DBManager database = DBManager.getInstance(ServerProperties.getInstance().getString(PropertyNames.DATABASE_URL.toString()));
 	
 	protected boolean checkToken(String token)
 	{

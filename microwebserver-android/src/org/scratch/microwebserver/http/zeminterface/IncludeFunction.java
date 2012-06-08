@@ -37,7 +37,7 @@ public class IncludeFunction extends MicroWebServerFunction
         if(!script.startsWith("/"))
         	script="/"+script;
 		
-		File f = new File(ServerProperties.getInstance().getString(PropertyNames.SERVER_ROOT)+script);
+		File f = new File(ServerProperties.getInstance().getString(PropertyNames.SERVER_ROOT.toString())+script);
 		
 		if(f.getName().toLowerCase().endsWith(".zhtml"))
 		{
@@ -52,7 +52,7 @@ public class IncludeFunction extends MicroWebServerFunction
 					sb+=b;		
 				bin.close();
 				
-				return new ZemIncludeString(ZHTMProcessor.process((ZHTMLZemInterpreter)interpreter,wb,sb));
+				return new ZemIncludeString(ZHTMProcessor.process((ZHTMLZemInterpreter)interpreter,wb,sb,null));
 			}catch(IOException ioe){ throw new ZHTMLException(500,ioe.getMessage());}
 		}
 		

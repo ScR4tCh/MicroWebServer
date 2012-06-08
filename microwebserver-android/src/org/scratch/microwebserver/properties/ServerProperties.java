@@ -49,24 +49,36 @@ public class ServerProperties
 			(new File(ROOT)).mkdirs();
 		
 		//fill with std props			
-		properties.put(PropertyNames.DATABASE_TYPE,"sqlite"); //TODO: this parameter should define the database type ! 
-		properties.put(PropertyNames.DATABASE_URL, ROOT+File.separator+"serverdata.sqlite"); // sqlite database file
+		properties.put(PropertyNames.DATABASE_TYPE.toString(),"sqlite"); //TODO: this parameter should define the database type ! 
+		properties.put(PropertyNames.DATABASE_URL.toString(), ROOT+File.separator+"serverdata.sqlite"); // sqlite database file
 		
-		properties.put(PropertyNames.SERVER_PORT, 8080); // webserver port
-		properties.put(PropertyNames.SERVER_WORKERS,1); //number of webserver workers
-		properties.put(PropertyNames.SERVER_ROOT,ROOT+File.separator+"webroot"); //webroot
+		properties.put(PropertyNames.SERVER_PORT.toString(), 8080); // webserver port
+		properties.put(PropertyNames.SERVER_PORTREDIRECT80.toString(), true); // redirect to 80 ? (root required)
+		properties.put(PropertyNames.SERVER_WORKERS.toString(),1); //number of webserver workers
+		properties.put(PropertyNames.SERVER_ROOT.toString(),ROOT+File.separator+"webroot"); //webroot
+		
+		//experimental crap ...
+		properties.put(PropertyNames.SERVER_SSLENABLE.toString(), false); // enable ssl socket ?
+		properties.put(PropertyNames.SERVER_PORTSSL.toString(), 44300); // webserver ssl port
+		properties.put(PropertyNames.SERVER_SSLCERT.toString(), ROOT+File.separator+"debug.cert");
+		
+		//mime magic file
+		properties.put(PropertyNames.MAGICMIME_FILE.toString(), ROOT+File.separator+"magic.mime");
+
 				
-		properties.put(PropertyNames.TOKEN_EXPIRATION,7200000); //how long should a webservice token be valid (std: 2 hours)
+		properties.put(PropertyNames.TOKEN_EXPIRATION.toString(),7200000); //how long should a webservice token be valid (std: 2 hours)
 		
-		properties.put(PropertyNames.ALLOW_DIRLIST,true);
-		properties.put(PropertyNames.PROCESS_HTACCESS,false);
-		properties.put(PropertyNames.FOLLOW_SYMLINKS,true);
-		properties.put(PropertyNames.CACHE_PATH,"cached");
+		properties.put(PropertyNames.ALLOW_DIRLIST.toString(),true);
+		properties.put(PropertyNames.PROCESS_HTACCESS.toString(),false);
+		properties.put(PropertyNames.FOLLOW_SYMLINKS.toString(),true);
+		properties.put(PropertyNames.CACHE_PATH.toString(),"cached");
+		
+		properties.put(PropertyNames.INDEX_NAME.toString(),"index");
 
 		try
 		{
-			properties.put(PropertyNames.DEFAULT_FOLDER_ICON,AndroidImageResolver.resolveCachedAndroidImage(R.drawable.deffolder));
-			properties.put(PropertyNames.DEFAULT_FILE_ICON,AndroidImageResolver.resolveCachedAndroidImage(R.drawable.deffile));
+			properties.put(PropertyNames.DEFAULT_FOLDER_ICON.toString(),AndroidImageResolver.resolveCachedAndroidImage(R.drawable.deffolder));
+			properties.put(PropertyNames.DEFAULT_FILE_ICON.toString(),AndroidImageResolver.resolveCachedAndroidImage(R.drawable.deffile));
 			
 			//test only !
 			//properties.put(PropertyNames.DEFAULT_FOLDER_ICON,AndroidImageResolver.resolveCachedAndroidImage(android.R.drawable.ic_menu_add));
@@ -75,8 +87,8 @@ public class ServerProperties
 		catch(IOException e1)
 		{
 			e1.printStackTrace();
-			properties.put(PropertyNames.DEFAULT_FOLDER_ICON,ROOT+File.separator+"icons"+File.separator+"folder.png");
-			properties.put(PropertyNames.DEFAULT_FILE_ICON,ROOT+File.separator+"icons"+File.separator+"file.png");
+			properties.put(PropertyNames.DEFAULT_FOLDER_ICON.toString(),ROOT+File.separator+"icons"+File.separator+"folder.png");
+			properties.put(PropertyNames.DEFAULT_FILE_ICON.toString(),ROOT+File.separator+"icons"+File.separator+"file.png");
 		}
 		
 		try
@@ -85,14 +97,14 @@ public class ServerProperties
 		}
 		catch(IOException ioe)
 		{
-			Log.w(PropertyNames.LOGGERNAME,"could not read properties file: "+ioe.getMessage());
+			Log.w(PropertyNames.LOGGERNAME.toString(),"could not read properties file: "+ioe.getMessage());
 			try
 			{
 				writeProperties();
 			}
 			catch(IOException e)
 			{
-				Log.w(PropertyNames.LOGGERNAME,"could not write new properties file: "+e.getMessage());
+				Log.w(PropertyNames.LOGGERNAME.toString(),"could not write new properties file: "+e.getMessage());
 			}
 		}
 	}
@@ -129,6 +141,9 @@ public class ServerProperties
 	
 	public String getString(String key)
 	{
+		if(!properties.containsKey(key))
+			return null;
+		
 		return properties.get(key).toString();
 	}
 	

@@ -2,44 +2,49 @@
  * Android Micro Web Server
  * Copyright (C) 2011  ScR4tCh
  * Contact scr4tch@scr4tch.org
-
+ *
  * This program is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
-
+ *
  * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the Lesser GNU General Public License for more details.
-
+ *
  * You should have received a copy of the GNU Lesser General Public License along with this program; if not, see <http://www.gnu.org/licenses/>.
- */
-/**
- * @author scratch
- * 
+ *
  * A very minimalistic "webserver" that is able to process
- * get and post commands received by any client.
- * This implementation is totally stateless and does not provide
- * connection "keep-alive" functionality.
- * After each request/reply circle, the connection is cancelled !
+ * head,get and post commands received by any client.
+ * 
  * 
  * TODO: implement the "WebServices" class to be able to define external request handlers (defined as xml maybe ...)!
  */
 
 package org.scratch.microwebserver.http;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.FileNameMap;
 import java.net.Socket;
 import java.net.URLConnection;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Vector;
+
+import net.zeminvaders.lang.runtime.ZemObject;
 
 import org.scratch.microwebserver.data.Cache;
 import org.scratch.microwebserver.data.DBManager;
@@ -47,29 +52,50 @@ import org.scratch.microwebserver.http.zeminterface.ZHTMLException;
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
 import org.scratch.microwebserver.util.Helper;
-
+import org.scratch.microwebserver.util.MimeDetector;
+import org.scratch.microwebserver.util.MimeType;
 
 public class WebConnection
 {
 	private static final String IDENTIFIER="ScR4tCh MicroWebServer Android";
 	
-	
+	//consts
+	private static final String HTTPID="HTTP/1.1 ";
+	private static final String HEAD_SERVER="Server: ";
+	private static final String HEAD_DATE="Date: ";
+	private static final String HEAD_CONNECTION="Connection: ";
+	private static final String HEAD_CONTENTTYPE="Content-Type: ";
+	private static final String HEAD_CONTENTLENGTH="Content-Length: ";
+	private static final String HEAD_CONTENTRANGE="Content-Range: ";
+	private static final String HEAD_SETCOOKIE="Set-Cookie: ";
+	private static final String SLASH="/";
 	private static final String EOL=(char)13+""+(char)10;
-	
-	//TODO: auto generate Error pages !
-	private static final String P403="<HTML><HEAD><TITLE>403 Forbidden</TITLE></HEAD><BODY><H1>403 Forbidden</H1>The server does not allow acccess, perhaps you must authenticate ...</BODY></HTML>";
-	private static final String P404="<HTML><HEAD><TITLE>404 Not Found</TITLE></HEAD><BODY><H1>404 Not Found</H1>The requested page or service was not found on this server</BODY></HTML>";
 
+	//"read" ahead
+	private static final int BBUFFERSIZE=16384;
+	
+	//socket timeout
+	private static final int SOCKETTIMEOUT=5000; //eight seconds ... (best with telnet ;) )
+	private static final int KEEPALIVETIMEOUT=15000; //eight seconds ... (best with telnet ;) )
+	
+	//Connection value
+	private static final String CONN_CLOSE="close";
+	private static final String CONN_KEEP="keep-alive";
+	
+	
 	//new page setup ...
 	private String request;
 	private String[] urlReq;
 	private String mimetype=null;
 	private long length=-1;
-	private boolean post=false;
+	//private boolean post=false;
 	private Map<String,String> cookie = new HashMap<String,String>();
 	private Map<String,String> setCookie = new HashMap<String,String>();
 	private Map<String,String> extras = new HashMap<String,String>();
 	private int statuscode=200;
+	
+	//request type
+	int rt;
 	
 	//request params
 	private String[] params;
@@ -78,44 +104,61 @@ public class WebConnection
 	
 	//connection specific
 	private MicroWebServer server;
-	private Socket sock;
+	protected Socket sock;
 	private BufferedReader in;
 	private Map<String,String> getData = new HashMap<String,String>();
 	private OutputStream out;
 	private StringBuffer outBuffer = new StringBuffer();
-	private DBManager database=DBManager.getInstance(ServerProperties.getInstance().getString(PropertyNames.DATABASE_URL));
+	private DBManager database=DBManager.getInstance(ServerProperties.getInstance().getString(PropertyNames.DATABASE_URL.toString()));
 	private WebServices services = WebServices.getInstance();
 	
+	//reply specific
+	private SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss z");
+	
+	//range header support
+	private long byteFrom=-1;
+	private long byteTo=-1;
 	
 	private volatile boolean connected=false;
-		
+	
+	private MimeDetector mimeDetect;
+	
+	//keep-alive
+	private boolean keep_alive = false;
+	private volatile boolean processing=false;
+	
+	
 	public WebConnection(final Socket sock,final MicroWebServer server)throws IOException
 	{
 		this.server=server;
+		this.mimeDetect=server.getMimeDetector();
 		this.sock=sock;
-		this.sock.setSoTimeout(5000);
+		this.sock.setSoTimeout(SOCKETTIMEOUT);
 		in=new BufferedReader(new InputStreamReader(sock.getInputStream()));
-		out=sock.getOutputStream();
+		out=new BufferedOutputStream(sock.getOutputStream());
+		
+		log(MicroWebServerListener.LOGLEVEL_DEBUG,"connection from: "+sock.getInetAddress());
 		
 		connected=true;
 
 	}
 
-	public void process() throws IOException
+	public synchronized void process() throws IOException
 	{
 		boolean first=true;
-		post=false;
 		
 		String buffer;
 		
 		//read http header
-		while((buffer=in.readLine())!=null && buffer.length()>0 && connected)
+		while((buffer=in.readLine())!=null && buffer.length()>0 && connected && !processing)
 		{
 			if(first)
 			{
 				params=buffer.split("\\s");
 		
 				request = params[1];
+				
+				log(MicroWebServerListener.LOGLEVEL_DEBUG,"request: "+Arrays.asList(params));
 				
 				int urlei = params[1].indexOf('?');
 				if(urlei>0)
@@ -124,88 +167,149 @@ public class WebConnection
 					params[1]=params[1].substring(0,urlei);
 				}
 				
-				urlReq=params[1].split("/");
+				urlReq=params[1].split(SLASH);
 				first=false;
 				
 				if(params[0].toLowerCase().equals("post"))
 				{
-					post=true;
+					rt=WebServices.METHOD_POST;
+					//post=true;
 				}
+				else if(params[0].toLowerCase().equals("get"))
+				{
+					rt=WebServices.METHOD_GET;
+				}
+				else if(params[0].toLowerCase().equals("head"))
+				{
+					rt=WebServices.METHOD_HEAD;
+				}
+				continue;
 			}
 			
-			
-			
-			if(buffer.length()==0)
+			if(buffer.trim().length()==0)
+			{
+				processing=true;
 				break;
+			}	
 			
 			if(buffer.toLowerCase().startsWith("cookie:"))
 			{
 				processCookies(buffer.substring(buffer.indexOf(':')+1,buffer.length()).trim());
 			}
-			else if(post && buffer.toLowerCase().startsWith("content-type:"))
+			else if(rt==WebServices.METHOD_POST && buffer.toLowerCase().startsWith("content-type:"))
 			{
 				mimetype=buffer.substring(buffer.indexOf(':')+1,buffer.length()).trim();
 			}
-			else if(post && buffer.toLowerCase().startsWith("content-length:"))
+			else if(rt==WebServices.METHOD_POST && buffer.toLowerCase().startsWith("content-length:"))
 			{
 				length=Long.valueOf(buffer.substring(buffer.indexOf(':')+1,buffer.length()).trim()).longValue();
+			}
+			else if(buffer.toLowerCase().startsWith("connection:"))
+			{
+				String c = buffer.substring(buffer.indexOf(':')+1,buffer.length()).trim().toLowerCase();
+				if(c.equals(CONN_KEEP))
+				{
+					keep_alive=true;
+					sock.setSoTimeout(KEEPALIVETIMEOUT);
+				}
+			}
+			else if(rt==WebServices.METHOD_GET && buffer.toLowerCase().startsWith("range:"))
+			{
+				String br = buffer.substring(buffer.indexOf(':')+1).trim();
+				String[]brc = br.split("=");
+				if(brc.length==2)
+				{
+					if(brc[0].equals("bytes"))
+					{
+						try
+						{
+							String[] brr = brc[1].split("-");
+							if(brc[1].startsWith("-"))
+							{
+								byteTo=Long.parseLong(brr[1]);
+							}
+							else if(brc[1].endsWith("-"))
+							{
+								byteFrom=Long.parseLong(brr[0]);
+							}
+							else
+							{
+								byteFrom=Long.parseLong(brr[0]);
+								byteTo=Long.parseLong(brr[1]);
+							}
+							
+							log(MicroWebServerListener.LOGLEVEL_DEBUG,"byte range acceptable_: "+byteFrom+" TO "+byteTo);
+							
+						}catch(NumberFormatException nfe)
+						 {
+							byteFrom=-1;
+							byteTo=-1;
+							log(MicroWebServerListener.LOGLEVEL_NORMAL,"ibvalid byte range: "+buffer);
+						 }
+					}
+					else
+					{
+						log(MicroWebServerListener.LOGLEVEL_NORMAL,"unknown range: "+buffer);
+					}
+				}
+				else
+				{
+					log(MicroWebServerListener.LOGLEVEL_NORMAL,"unacceptable byte range: "+buffer);
+				}
+				
 			}
 			
 			
 			header.add(buffer);
-		}		
+		}
 		
-		File f = new File(ServerProperties.getInstance().getString(PropertyNames.SERVER_ROOT)+params[1]);
+		log(MicroWebServerListener.LOGLEVEL_DEBUG,"HEADER:\n"+headOut(header));
+		
+		File f = new File(ServerProperties.getInstance().getString(PropertyNames.SERVER_ROOT.toString())+URLDecoder.decode(params[1],"UTF-8"));
 		
 		if(f.exists() && f.isDirectory())
 		{
 			String fp = f.getPath();
-			if(!fp.endsWith("/"))
-				fp=fp+"/";
+			if(!fp.endsWith(SLASH))
+				fp+=SLASH;
 			
 			File possIndex;
 			
-			if((possIndex=new File(fp+"index.html")).exists())
+			if((possIndex=new File(fp+ServerProperties.getInstance().getString(PropertyNames.INDEX_NAME.toString())+".html")).exists())
 			{
 				f=possIndex;
 			}			
-			else if((possIndex=new File(fp+"index.htm")).exists())
+			else if((possIndex=new File(fp+ServerProperties.getInstance().getString(PropertyNames.INDEX_NAME.toString())+".htm")).exists())
 			{
 				f=possIndex;
 			}
-			else if((possIndex=new File(fp+"index.zhtml")).exists())
+			else if((possIndex=new File(fp+ServerProperties.getInstance().getString(PropertyNames.INDEX_NAME.toString())+".zhtml")).exists())
 			{
 				f=possIndex;
 			}
 			else
 			{
-				if(!ServerProperties.getInstance().getBoolean(PropertyNames.ALLOW_DIRLIST))
+				if(!ServerProperties.getInstance().getBoolean(PropertyNames.ALLOW_DIRLIST.toString()))
 				{
-					log(WebConnectionListener.LOGLEVEL_NORMAL,"dir listing requested, but not allowed");
-					reply(403,"Forbidden","text/html","utf-8",P403);
+					log(MicroWebServerListener.LOGLEVEL_NORMAL,"dir listing requested, but not allowed");
+					reply(403,"text/html","utf-8",constructErrorPage(403,"The server does not allow access, perhaps you must authenticate ..."));
 					return;
 				}
 				else
 				{
-					if(Helper.isSymlink(f) && !ServerProperties.getInstance().getBoolean(PropertyNames.FOLLOW_SYMLINKS))
+					if(Helper.isSymlink(f) && !ServerProperties.getInstance().getBoolean(PropertyNames.FOLLOW_SYMLINKS.toString()))
 					{
-						//403
+						//403 ?
 					}
 					else
 					{
-						// do listing !
-						send("HTTP/1.1 200");
-						send("Server: "+IDENTIFIER);
-						send("Content-Type: text/html");
-						
 						StringBuffer list = doDirList(f);
 						
 						byte[] sb = list.toString().getBytes();
-						send("Content-Length: "+sb.length);
 						
-						send("");
-						send(sb);
-						close();
+						// do listing !
+						sendOK(sb,null,true);
+												
 						return;
 					}
 				}
@@ -217,7 +321,6 @@ public class WebConnection
 		if(f.exists() && f.isFile())
 		{
 			StringBuffer sendBuffer = new StringBuffer();
-			
 			
 						
 			if(f.getName().toLowerCase().endsWith(".zhtml"))
@@ -235,22 +338,30 @@ public class WebConnection
 				
 				try
 				{
-					sendBuffer.append(ZHTMProcessor.process(this,sb));
+					long t0 = System.currentTimeMillis();
+					ZemObject res=null;
+					sendBuffer.append(ZHTMProcessor.process(this,sb,res));
+					long t = System.currentTimeMillis()-t0;
+					
+					log(MicroWebServerListener.LOGLEVEL_INFO,"ZemScript executing "+f+" took "+t+"ms"+((res==null)?"":" result="+res.toString()));
+					
 				}catch(ZHTMLException e)
 				 {
-					log(WebConnectionListener.LOGLEVEL_WARN,e.getReplyCode()+" "+getCodeDescription(e.getReplyCode())+" "+e.getMessage());
-					reply(e.getReplyCode(),e.getMessage(),"text/html","utf-8","<html><head><title>ERROR</title></head><body><h1>"+e.getReplyCode()+" "+getCodeDescription(e.getReplyCode())+"</h1>"+e.getMessage().replace("\n","<br/>")+"</body></html>");
+					log(MicroWebServerListener.LOGLEVEL_WARN,e.getReplyCode()+" "+getCodeDescription(e.getReplyCode())+" "+e.getMessage());
+					reply(e.getReplyCode(),"text/html","utf-8","<html><head><title>ERROR</title></head><body><h1>"+e.getReplyCode()+" "+getCodeDescription(e.getReplyCode())+"</h1>"+e.getMessage().replace("\n","<br/>")+"</body></html>");
 					return;
 				 }
 				
-				send("HTTP/1.1 "+statuscode);
+				send(HTTPID+statuscode);
+				send(HEAD_SERVER+IDENTIFIER);
+				send(HEAD_DATE+dateFormat.format(new Date(System.currentTimeMillis())));
+				send(HEAD_CONNECTION+(keep_alive?CONN_KEEP:CONN_CLOSE));
 				sendExtras();
-				send("Server: "+IDENTIFIER);
 				
 				
 				if(statuscode>=200 && statuscode<300)
 				{
-					send("Content-Type: text/html");
+					send(HEAD_CONTENTTYPE+"text/html");
 					
 					if(setCookie.size()>0)
 					{
@@ -265,7 +376,7 @@ public class WebConnection
 								cookie+=";";
 						}
 						
-						send("Set-Cookie: "+cookie);
+						send(HEAD_SETCOOKIE+cookie);
 					}
 					
 	
@@ -274,7 +385,8 @@ public class WebConnection
 			}
 			else
 			{
-				serveFile(f);
+				//TODO: check for range header
+				serveFile(f,byteFrom,byteTo);
 			}
 			
 			close();
@@ -285,24 +397,20 @@ public class WebConnection
 			{
 				try
 				{
-					WebServiceReply ret = services.invoke(params[1],post?WebServices.METHOD_POST:WebServices.METHOD_GET,mimetype,this);
-					send("HTTP/1.1 200");
-					send("Server: "+IDENTIFIER);
-					send("Content-Type: "+ret.getMime());
-					send("Content-Length: "+ret.getLength());
-					send("");
+					WebServiceReply ret = services.invoke(params[1],rt/*post?WebServices.METHOD_POST:WebServices.METHOD_GET*/,mimetype,this);
 					
-					if(ret!=null && ret.getData()!=null)
-						send(ret.getData().toString());
 					
-					close();
+					if(ret==null || (ret!=null && ret.getData()==null))
+						sendOK(0,new StringBuffer(),null,true);
+					else
+						sendOK(ret.getLength(),ret.getData(),ret.getMime(),true);
 				}
 				catch(WebServiceException wse)
 				{
 					//wse.printStackTrace();
 					//TODO: auto generate Error pages ! [OR: read from FS -> config "page overrides"]
-					log(WebConnectionListener.LOGLEVEL_WARN,wse.getReplyCode()+" "+getCodeDescription(wse.getReplyCode())+" "+params[1]);
-					reply(wse.getReplyCode(),wse.getMessage(),"text/html","utf-8","");
+					log(MicroWebServerListener.LOGLEVEL_WARN,wse.getReplyCode()+" "+getCodeDescription(wse.getReplyCode())+" "+params[1]);
+					reply(wse.getReplyCode(),"text/html","utf-8","");
 				}
 			}
 			else
@@ -310,41 +418,193 @@ public class WebConnection
 				//last try ... does a cached file exist ?
 				if(Cache.getInstance().has(params[1]))
 				{
-					serveFile(Cache.getInstance().getCached(params[1]));
+					//TODO: check for range header
+					serveFile(Cache.getInstance().getCached(params[1]),byteFrom,byteTo);
+					close();
 				}
 				else
 				{
-					log(WebConnectionListener.LOGLEVEL_NORMAL,"404 NOT FOUND : "+params[1]);
-					reply(404,"Not Found","text/html","utf-8",P404);
+					log(MicroWebServerListener.LOGLEVEL_NORMAL,"404 NOT FOUND : "+params[1]);
+					reply(404,"text/html","utf-8",constructErrorPage(404,"The requested page or service was not found on this server"));
 				}
 			}
 		}
 	}
 	
-	private void serveFile(File f) throws IOException
+	private String headOut(Vector<String> header)
+	{
+		StringBuffer ret = new StringBuffer();
+		
+		for(int i=0;i<header.size();i++)
+			ret.append(header.elementAt(i)+"\n");
+		
+		return ret.toString();
+	}
+
+	private synchronized void sendOK(byte[] data,String mime,boolean close) throws IOException
+	{
+		send(HTTPID+"200");
+		send(HEAD_SERVER+IDENTIFIER);
+		send(HEAD_DATE+dateFormat.format(new Date(System.currentTimeMillis())));
+		send(HEAD_CONNECTION+(keep_alive?CONN_KEEP:CONN_CLOSE));
+		
+		if(mime!=null)
+			send(HEAD_CONTENTTYPE+mime);
+		else
+			send(HEAD_CONTENTTYPE+"text/html");
+		
+		send(HEAD_CONTENTLENGTH+data.length);
+		
+		sendExtras();
+		
+		send("");
+		
+		if(data!=null && rt!=WebServices.METHOD_HEAD)
+			send(data);
+		
+		if(close)
+			close();
+	}
+	
+	private synchronized void sendOK(long l,StringBuffer data,String mime,boolean close) throws IOException
+	{
+		send(HTTPID+"200");
+		send(HEAD_SERVER+IDENTIFIER);
+		send(HEAD_DATE+dateFormat.format(new Date(System.currentTimeMillis())));
+		send(HEAD_CONNECTION+(keep_alive?CONN_KEEP:CONN_CLOSE));
+		
+		if(mime!=null)
+			send(HEAD_CONTENTTYPE+mime);
+		else
+			send(HEAD_CONTENTTYPE+"text/html");
+		
+		send(HEAD_CONTENTLENGTH+l);
+		
+		sendExtras();
+		
+		send("");
+		
+		if(data!=null && rt!=WebServices.METHOD_HEAD)
+			send(data.toString());
+		
+		if(close)
+			close();
+	}
+	
+	private String constructErrorPage(int errno,String errdetails)
+	{
+		String ret="<html><head><title>";
+		
+		ret+=errno+" "+getCodeDescription(errno)+"</title></head><body><h1>";
+		ret+=errno+" "+getCodeDescription(errno)+"</h1>"+errdetails+"</body></html>";
+		
+		return ret;
+	}
+	
+	private synchronized void serveFile(File f,long from,long to) throws IOException
 	{
 		//System.err.println("REQUEST STD FILE ! "+params[1]);
 		
-		send("HTTP/1.1 200");
-		send("Server: "+IDENTIFIER);
-		send("Content-Type: "+getMimeType("file://"+params[1]));
-		byte[] fbuffer = new byte[4096];
-		InputStream fin = new FileInputStream(f);
-		int r;
-		send("Content-Length: "+fin.available());
+		if(from!=-1 && to!=-1)
+		{
+			if(from<0 || to<0)
+				throw new IOException("invalid range given, must be >0");
+			
+			if(from>to)
+				throw new IOException("lower range boundary must not be bigger than upper !");
+		}
+		
+						
+//		String mime = getMimeType("file://"+f.getAbsolutePath());
+		String mime = getMimeType(f.getAbsolutePath());
+				
+		byte[] fbuffer = new byte[BBUFFERSIZE];
+		BufferedInputStream fin = new BufferedInputStream(new FileInputStream(f));
+		
+		long realsize=f.length();
+		
+		if(from==-1)
+			from=0;
+		
+		if(to==-1)
+			to=realsize;
+		
+		
+		long rd=0;
+		
+		if(from>0)
+		{
+			fin.skip(from);
+			rd=from;
+		}
+				
+		long avail=to-from;
+		
+		boolean range = (from>0 || to<realsize);
+		
+		log(MicroWebServerListener.LOGLEVEL_DEBUG,"RANGE: "+range+"-> "+rd+"-"+(rd+avail)+"/"+realsize+" | "+to);
+		
+		
+		//HTTP PART
+		if(!range)
+		{
+			send(HTTPID+"200");
+		}
+		else
+		{
+			send(HTTPID+"206");
+			send("Cache-Control: no-cache");
+			send("Expires: "+dateFormat.format(new Date(System.currentTimeMillis()+72000)));
+		}
+		
+		send(HEAD_SERVER+IDENTIFIER);
+		
+		if(mime!=null)
+			send(HEAD_CONTENTTYPE+mime);
+		else
+			send(HEAD_CONTENTTYPE+"application/octet-stream");	//?!?
+		
+		send(HEAD_DATE+dateFormat.format(new Date(System.currentTimeMillis())));
+		
+		if(!range)
+			send(HEAD_CONTENTLENGTH+avail);
+		else
+			send(HEAD_CONTENTRANGE+"bytes "+rd+"-"+(rd+avail)+"/"+realsize);
+		
 		send("");
+		
 		out.write(outBuffer.toString().getBytes());
 		
-		outBuffer=new StringBuffer();
-		
-		while((r=fin.read(fbuffer))>0)
+		if(rt!=WebServices.METHOD_HEAD)
 		{
-			out.write(fbuffer,0,r);
+			log(MicroWebServerListener.LOGLEVEL_DEBUG,"SERVE FILE REPL:\n"+outBuffer.toString());
+			
+			//"STREAM"
+			outBuffer=new StringBuffer();
+			
+			int r=0;
+			
+			while((r=fin.read(fbuffer))>0)
+			{
+				rd+=r;
+				
+				if(to!=avail && rd>to)
+				{
+					out.write(fbuffer,0,(int)(rd-to));
+					out.flush();
+				}
+				else
+				{
+					out.write(fbuffer,0,r);
+					out.flush();
+				}
+			}
+			fin.close();
 		}
-		fin.close();
+		
 	}
 
-	private StringBuffer doDirList(File f)
+	private synchronized StringBuffer doDirList(File f)
 	{
 		StringBuffer dl = new StringBuffer();
 		
@@ -353,7 +613,7 @@ public class WebConnection
 		Vector<File> files = new Vector<File>(Arrays.asList(f.listFiles()));
 		
 		
-		log(WebConnectionListener.LOGLEVEL_DEBUG,"create dir listing: "+f.getAbsolutePath()+"    "+files.size()+" files");
+		log(MicroWebServerListener.LOGLEVEL_DEBUG,"create dir listing: "+f.getAbsolutePath()+"    "+files.size()+" files");
 		
 		Collections.sort(files,new Comparator<File>()
 								{
@@ -384,18 +644,18 @@ public class WebConnection
 			String ico="";
 			
 			if(files.elementAt(i).isDirectory())
-				ico=ServerProperties.getInstance().getString(PropertyNames.DEFAULT_FOLDER_ICON);
+				ico=ServerProperties.getInstance().getString(PropertyNames.DEFAULT_FOLDER_ICON.toString());
 			else
-				ico=ServerProperties.getInstance().getString(PropertyNames.DEFAULT_FILE_ICON);
+				ico=ServerProperties.getInstance().getString(PropertyNames.DEFAULT_FILE_ICON.toString());
 			
 			String shrtn = files.elementAt(i).getName();
 			
 			if(files.elementAt(i).isDirectory())
-				shrtn+="/";
+				shrtn+=SLASH;
 			
 			if(shrtn.length()>23)
 			{
-				shrtn = shrtn.substring(0,20)+"..&gt;";
+				shrtn = shrtn.substring(0,20)+"..>";
 			}
 			
 			String space="";
@@ -405,7 +665,32 @@ public class WebConnection
 					space+=" ";
 			}
 			
-			dl.append("<image src=\""+ico+"\">  <a alt=\""+files.elementAt(i).getName()+"\" href=\""+params[1]+files.elementAt(i).getName()+"\">"+shrtn+"</a>"+space+" "+Helper.stdDateFormat(files.elementAt(i).lastModified())+" "+Helper.fileSizeFormat(files.elementAt(i).length())+"\n");
+			try
+			{
+				String furl;
+				String fl;
+				
+				if(files.elementAt(i).isDirectory())
+				{
+					fl="-";
+					furl=params[1]+URLEncoder.encode(files.elementAt(i).getName(),"UTF-8")+SLASH;
+				}
+				else
+				{
+					fl=Helper.fileSizeFormat(files.elementAt(i).length());
+					furl=params[1]+URLEncoder.encode(files.elementAt(i).getName(),"UTF-8");
+				}
+				
+				dl.append("<image src=\""+ico+"\">  <a alt=\""+files.elementAt(i).getName()+"\" href=\""+furl+"\">"+shrtn+"</a>"+space+"   "+Helper.stdDateFormat(files.elementAt(i).lastModified())+"   "+fl+"\n");
+			}
+			catch(UnsupportedEncodingException e)
+			{
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+				
+			
+			
 		}
 		
 		dl.append("\t\t<hr/></pre>\n\t<p>"+IDENTIFIER+"</p></body>\n</html>\n");
@@ -472,36 +757,65 @@ public class WebConnection
 		return database;
 	}
 	
-	public static String getMimeType(String fileUrl) throws java.io.IOException
+	private String getMimeType(String fileUrl)
 	{
-	    FileNameMap fileNameMap = URLConnection.getFileNameMap();
-	    String type = fileNameMap.getContentTypeFor(fileUrl);
 
-	    return type;
+		Collection<MimeType> mts = new HashSet<MimeType>();
+		try
+		{
+			mts=mimeDetect.getMimeTypesFile(fileUrl);
+		}
+		catch(UnsupportedOperationException e)
+		{
+			e.printStackTrace();
+		}
+		catch(IOException e)
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		if(mts.size()>0)
+		{
+			return mts.toArray()[0].toString();
+		}
+		else
+		{
+			    FileNameMap fileNameMap = URLConnection.getFileNameMap();
+			    String type = fileNameMap.getContentTypeFor("file://"+fileUrl);
+			    return type;
+		}
 	}
-	
+		
 	//simpe reply
-	protected void reply(int no,String id,String content,String charset,String message) throws IOException
+	protected synchronized void reply(int no,String content,String charset,String message) throws IOException
 	{
 		outBuffer=new StringBuffer();
-		send("HTTP/1.1 "+no+" "+id);
+		send(HTTPID+no+" "+getCodeDescription(no));
 		send("Cache-Control: no-cache");
-		send("Server: "+IDENTIFIER);
-		send("Content-Type: "+content+"; charset="+charset);
+		send(HEAD_SERVER+IDENTIFIER);
+		send(HEAD_CONTENTTYPE+content+"; charset="+charset);
 		send("");
-		send(message);
+		if(message!=null)
+			send(message);
 		close();
 	}
 	
-	public void close() throws IOException
+	public synchronized void close() throws IOException
 	{
 		out.write(outBuffer.toString().getBytes());
 		out.flush();
-		out.close();
-		in.close();
-		connected=false;
-		sock.close();
-		server.removeConnection(this);
+		
+		processing=false;
+		
+		if(!keep_alive)
+		{
+			out.close();
+			in.close();
+			connected=false;
+			sock.close();
+			server.removeConnection(this);
+		}
 	}
 	
 	public final MicroWebServer getServer()
@@ -511,7 +825,8 @@ public class WebConnection
 	
 	public boolean hasPostData()
 	{
-		return post;
+		//return post;
+		return rt==WebServices.METHOD_POST;
 	}
 	
 	public boolean hasGetData()
@@ -550,15 +865,16 @@ public class WebConnection
 	{
 		switch(code)
 		{
-			case 400:return "Bad Request";
-			case 401:return "Unauthorized";
-			case 403:return "Forbidden";
-			case 404:return "Not Found";
+			case 200:return "OK";
+			case 400:return "Bad Request!";
+			case 401:return "Unauthorized!";
+			case 403:return "Forbidden!";
+			case 404:return "Not Found!";
 			case 411:return "Length Required";
 			case 415:return "Unsupported Media Type";
 			case 501:return "Unknown";
 			case 500:return "Internal Server Error";
-			default: return "Unknwon";
+			default: return "Undefined Error";
 
 		}
 	}
@@ -598,7 +914,7 @@ public class WebConnection
 		return getData.get(key);
 	}
 	
-	private void log(int lev,String msg)
+	protected void log(int lev,String msg)
 	{
 		server.log(System.currentTimeMillis(),lev,this,msg);
 	}
@@ -611,5 +927,26 @@ public class WebConnection
 	public String getRequest()
 	{
 		return request;
+	}
+	
+	protected void setKeepAlive(boolean b)
+	{
+		keep_alive=b;
+	}
+
+	//reset values for "kept connection" !
+	protected void reset()
+	{
+		request=null;
+		urlReq=null;
+		mimetype=null;
+		length=-1;
+		outBuffer=new StringBuffer();
+		cookie.clear();
+		setCookie.clear();
+		extras.clear();
+		statuscode=200;
+		
+		header.clear();
 	}
 }

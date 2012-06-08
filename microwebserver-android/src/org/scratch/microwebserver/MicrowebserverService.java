@@ -20,7 +20,7 @@ import java.io.PrintWriter;
 import java.util.Vector;
 
 import org.scratch.microwebserver.http.MicroWebServer;
-import org.scratch.microwebserver.http.WebConnectionListener;
+import org.scratch.microwebserver.http.MicroWebServerListener;
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
 
@@ -34,7 +34,7 @@ import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
-public class MicrowebserverService extends Service implements WebConnectionListener
+public class MicrowebserverService extends Service implements MicroWebServerListener
 {
 	// "tray" icon
 	private NotificationManager mNotificationManager;
@@ -68,13 +68,13 @@ public class MicrowebserverService extends Service implements WebConnectionListe
 			try
 			{
 				server=new MicroWebServer();
-				server.addWebConnectionListener(MicrowebserverService.this);
+				server.addMicroWebServerListener(MicrowebserverService.this);
 				createNotification("serving ...");
 				return true;
 			}
 			catch(IOException e)
 			{
-				Log.e(PropertyNames.LOGGERNAME,"Could not start server: "+e.getMessage());
+				Log.e(PropertyNames.LOGGERNAME.toString(),"Could not start server: "+e.getMessage());
 				return false;
 			}
 		}
@@ -84,12 +84,19 @@ public class MicrowebserverService extends Service implements WebConnectionListe
 			if(server!=null)
 			{
 				server.shutdown();
-				server.removeWebConnectionListener(MicrowebserverService.this);
+				server.removeMicroWebServerListener(MicrowebserverService.this);
 			}
 			
 			mNotificationManager.cancel(APPICON_ID);
 			
 			logWriter.close();
+		}
+		
+		//TODO: Test behavior !
+		public void restartServer()
+		{
+			stopServer();
+			startServer();
 		}
 
 		public boolean isServerUp()
@@ -158,10 +165,11 @@ public class MicrowebserverService extends Service implements WebConnectionListe
 		 * time(ms)|level|msg|addr|req
 		 * 
 		 */
-		logWriter.println(t+"|"+lev+"|"+msg+"|"+client+"|"+request);
+		
+		logWriter.println(t+"|"+lev+"|"+msg.replaceAll("\\|","\\\\|").replaceAll("\n","\\\\n")+"|"+client+"|"+request);
 		if(logWriter.checkError())
 		{
-			LogEntry le = new LogEntry(System.currentTimeMillis(),WebConnectionListener.LOGLEVEL_ERROR,"there was an error while writing to the logfile","","SERVER");
+			LogEntry le = new LogEntry(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_ERROR,"there was an error while writing to the logfile","","SERVER");
 			for(int i=0;i<listeners.size();i++)
 				listeners.elementAt(i).log(le);
 		}
@@ -169,6 +177,20 @@ public class MicrowebserverService extends Service implements WebConnectionListe
 		LogEntry le = new LogEntry(t,lev,msg,request,client);
 		for(int i=0;i<listeners.size();i++)
 			listeners.elementAt(i).log(le);
+	}
+
+	@Override
+	public void startUp(boolean started)
+	{
+		for(int i=0;i<listeners.size();i++)
+			listeners.elementAt(i).startUp(started);
+	}
+
+	@Override
+	public void shutDown(boolean shutDown)
+	{
+		for(int i=0;i<listeners.size();i++)
+			listeners.elementAt(i).shutDown(shutDown);
 	}
 
 }

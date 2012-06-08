@@ -11,7 +11,7 @@
  */
 package org.scratch.microwebserver.http;
 
-public interface WebConnectionListener
+public interface MicroWebServerListener
 {
 	public static final int LOGLEVEL_DEBUG=0;
 	public static final int LOGLEVEL_INFO=1;
@@ -20,4 +20,6 @@ public interface WebConnectionListener
 	public static final int LOGLEVEL_ERROR=4;
 	
 	public void log(long t,int lev,String client,String request,String msg);
+	public void startUp(boolean started);
+	public void shutDown(boolean shutDown);
 }

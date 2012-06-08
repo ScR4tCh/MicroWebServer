@@ -23,6 +23,7 @@ public class WebServices
 {
 	public static final int METHOD_GET=0;
 	public static final int METHOD_POST=1;
+	public static final int METHOD_HEAD=2;
 	
 	private static WebServices instance;
 	

@@ -13,7 +13,6 @@ package org.scratch.microwebserver.util;
 
 import java.io.File;
 import java.io.IOException;
-import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.HashSet;
 import java.util.Map;
@@ -24,7 +23,7 @@ public class Helper
 {
 	private static SimpleDateFormat formatter = new SimpleDateFormat("dd-MMM-yy HH:mm");
 	
-	public static String dumpMap(Map m,String keyDescriptor,String valueDescriptor)
+	public static String dumpMap(Map<?,?> m,String keyDescriptor,String valueDescriptor)
 	{
 		String s="";
 		
@@ -35,7 +34,7 @@ public class Helper
 	{  
 	  try  
 	  {  
-	    double d = Double.parseDouble(str);  
+	    Double.parseDouble(str);  
 	  }  
 	  catch(NumberFormatException nfe)  
 	  {  
@@ -48,7 +47,7 @@ public class Helper
 	{  
 	  try  
 	  {  
-	    Integer i = Integer.parseInt(str);  
+	    Integer.parseInt(str);  
 	  }  
 	  catch(NumberFormatException nfe)  
 	  {  

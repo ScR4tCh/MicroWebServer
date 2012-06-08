@@ -20,7 +20,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Vector;
 
-import org.scratch.microwebserver.http.WebConnectionListener;
+import org.scratch.microwebserver.http.MicroWebServerListener;
 
 import android.content.Context;
 import android.database.DataSetObserver;
@@ -30,9 +30,6 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.ListAdapter;
 import android.widget.TextView;
-
-import static ch.lambdaj.Lambda.*;
-import static org.hamcrest.Matchers.*;
 
 public class LogEntryAdapter implements ListAdapter
 {
@@ -84,6 +81,7 @@ public class LogEntryAdapter implements ListAdapter
 				 */
 				while((line=bin.readLine())!=null)
 				{
+					line.replaceAll("\\\\|","----DELIM----");
 					String[] cols = line.split("\\|");
 					if(cols.length>=5) //>= ??? possible extra info at the future ???
 					{
@@ -95,7 +93,7 @@ public class LogEntryAdapter implements ListAdapter
 						
 						int l = Integer.parseInt(cols[1]);
 						
-						LogEntry le = new LogEntry(t,l,cols[2],cols[4],cols[3]);
+						LogEntry le = new LogEntry(t,l,cols[2].replaceAll("----DELIM----","\\|").replaceAll("\\\\n","\n"),cols[4],cols[3]);
 						
 						logs.add(le);
 						if(checkLevel(le))
@@ -125,7 +123,7 @@ public class LogEntryAdapter implements ListAdapter
 		this.minlevel=minlevel;
 		this.maxlevel=maxlevel;
 		
-		workingSet=new Vector<LogEntry>(select(logs, having(on(LogEntry.class).getLevel(),allOf(anyOf(greaterThanOrEqualTo(this.minlevel),is(-1)),anyOf(lessThanOrEqualTo(this.maxlevel),is(-1))))));
+		//TODO: implement !
 	}
 	
 	private boolean checkLevel(LogEntry le)
@@ -149,7 +147,7 @@ public class LogEntryAdapter implements ListAdapter
 		if(checkLevel(le) && checkT(le))
 		{
 			workingSet.add(le);
-			//informObservers(true);
+			//informObservers();
 		}
 	}
 	
@@ -158,7 +156,6 @@ public class LogEntryAdapter implements ListAdapter
 	{
 		for(int i=0;i<observers.size();i++)
 				observers.elementAt(i).onChanged();
-			
 	}
 	
 	@Override
@@ -231,28 +228,28 @@ public class LogEntryAdapter implements ListAdapter
 	                	switch(le.getLevel())
 	                	{
 	                		default:	break;
-	                		case WebConnectionListener.LOGLEVEL_DEBUG:	level.setImageResource(android.R.drawable.ic_dialog_info);
+	                		case MicroWebServerListener.LOGLEVEL_DEBUG:	level.setImageResource(android.R.drawable.ic_dialog_info);
 	                													level.setColorFilter(0xFF0000FF,android.graphics.PorterDuff.Mode.MULTIPLY);
 	                													logtext.setTextColor(0xFF0000FF);
 	                													break;
 	                		
-	                		case WebConnectionListener.LOGLEVEL_INFO:	level.setImageResource(android.R.drawable.ic_dialog_info);
+	                		case MicroWebServerListener.LOGLEVEL_INFO:	level.setImageResource(android.R.drawable.ic_dialog_info);
 												                		level.setColorFilter(0xFFFFFFFF,android.graphics.PorterDuff.Mode.MULTIPLY);
 												                		logtext.setTextColor(0xFFFFFFFF);
 																		break;
 	                		
-	                		case WebConnectionListener.LOGLEVEL_NORMAL:	level.setImageResource(android.R.drawable.ic_dialog_info);
+	                		case MicroWebServerListener.LOGLEVEL_NORMAL:	level.setImageResource(android.R.drawable.ic_dialog_info);
 												                		level.setColorFilter(0xFF00FF00,android.graphics.PorterDuff.Mode.MULTIPLY);
 												                		logtext.setTextColor(0xFF00FF00);
 																		break;
 	                		
-	                		case WebConnectionListener.LOGLEVEL_WARN:	level.setImageResource(android.R.drawable.ic_dialog_alert);
+	                		case MicroWebServerListener.LOGLEVEL_WARN:	level.setImageResource(android.R.drawable.ic_dialog_alert);
 												                		level.setColorFilter(0xFFFF9900,android.graphics.PorterDuff.Mode.MULTIPLY);
 												                		logtext.setTextColor(0xFFFF9900);
 																		break;
 	                		
 	                		
-	                		case WebConnectionListener.LOGLEVEL_ERROR:	level.setImageResource(android.R.drawable.ic_dialog_alert);
+	                		case MicroWebServerListener.LOGLEVEL_ERROR:	level.setImageResource(android.R.drawable.ic_dialog_alert);
 												                		level.setColorFilter(0xFF000000,android.graphics.PorterDuff.Mode.MULTIPLY);
 												                		logtext.setTextColor(0xFF000000);
 																		break;

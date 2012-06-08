@@ -11,25 +11,166 @@
  */
 package org.scratch.microwebserver.properties;
 
-public class PropertyNames
+public enum PropertyNames
 {
-	public static final String LOGGERNAME="microwebserver";
-	
-	public static final String DATABASE_TYPE="microwebserver.database.type";
-	public static final String ALLOW_DIRLIST="microwebserver.allow.directorylisting";
-	public static final String PROCESS_HTACCESS="microwebserver.parse.htaccess";
-	public static final String FOLLOW_SYMLINKS="microwebserver.allow.followsymlinks";
-	
-	public static final String DATABASE_URL="microwebserver.database";
-	public static final String SERVER_PORT="microwebserver.port";
-	public static final String SERVER_WORKERS="microwebserver.workers";
-	public static final String SERVER_ROOT="microwebserver.webroot";
-	public static final String TOKEN_EXPIRATION="token.expiration";
+	LOGGERNAME(false,PropertyDatatype.STRING)
+	{
+		public String toString()
+		{
+			return "microwebserver";
+		}
+	},
+	DATABASE_TYPE(false,PropertyDatatype.STRING)
+	{
+		public String toString()
+		{
+			return "microwebserver.database.type";
+		}
+	},
+	ALLOW_DIRLIST(true,PropertyDatatype.BOOLEAN)
+	{
+		public String toString()
+		{
+			return "microwebserver.allow.directorylisting";
+		}
+	},
+	PROCESS_HTACCESS(false,PropertyDatatype.BOOLEAN)
+	{
+		public String toString()
+		{
+			return "microwebserver.parse.htaccess";
+		}
+	},
+	FOLLOW_SYMLINKS(false,PropertyDatatype.BOOLEAN)
+	{
+		public String toString()
+		{
+			return "microwebserver.allow.followsymlinks";
+		}
+	},
 
-	public static final String CACHE_PATH="microwebserver.cachepath";
+	DATABASE_URL(false,PropertyDatatype.STRING)
+	{
+		public String toString()
+		{
+			return "microwebserver.database";
+		}
+	},
+	SERVER_PORT(true,PropertyDatatype.INT)
+	{
+		public String toString()
+		{
+			return "microwebserver.port";
+		}
+	},
+	SERVER_PORTREDIRECT80(true,PropertyDatatype.BOOLEAN)
+	{
+		public String toString()
+		{
+			return "microwebserver.port.redirect80";
+		}
+	},
 
-	public static final String DEFAULT_FOLDER_ICON="microwebserver.default.folder.icon";
-	public static final String DEFAULT_FILE_ICON="microwebserver.default.file.icon";
+	SERVER_SSLENABLE(false,PropertyDatatype.BOOLEAN)
+	{
+		public String toString()
+		{
+			return "microwebserver.sslenable";
+		}
+	},
+	SERVER_PORTSSL(false,PropertyDatatype.INT)
+	{
+		public String toString()
+		{
+			return "microwebserver.portssl";
+		}
+	},
+	SERVER_SSLCERT(false,PropertyDatatype.FILE)
+	{
+		public String toString()
+		{
+			return "microwebserver.certificate";
+		}
+	},
 
+	SERVER_WORKERS(true,PropertyDatatype.INT)
+	{
+		public String toString()
+		{
+			return "microwebserver.workers";
+		}
+	},
+	SERVER_ROOT(true,PropertyDatatype.FOLDER)
+	{
+		public String toString()
+		{
+			return "microwebserver.webroot";
+		}
+	},
+	TOKEN_EXPIRATION(true,PropertyDatatype.INT)
+	{
+		public String toString()
+		{
+			return "token.expiration";
+		}
+	},
+
+	CACHE_PATH(false,PropertyDatatype.FOLDER)
+	{
+		public String toString()
+		{
+			return "microwebserver.cachepath";
+		}
+	},
+
+	DEFAULT_FOLDER_ICON(true,PropertyDatatype.MIXED)
+	{
+		public String toString()
+		{
+			return "microwebserver.default.folder.icon";
+		}
+	},
+	DEFAULT_FILE_ICON(true,PropertyDatatype.MIXED)
+	{
+		public String toString()
+		{
+			return "microwebserver.default.file.icon";
+		}
+	},
+
+	INDEX_NAME(true,PropertyDatatype.STRING)
+	{
+		public String toString()
+		{
+			return "index";
+		}
+	},
+
+	MAGICMIME_FILE(false,PropertyDatatype.FILE)
+	{
+		public String toString()
+		{
+			return "magicmime.file";
+		}
+	};
 	
+	private boolean conf;
+	private PropertyDatatype type;
+
+	 private PropertyNames(boolean configurable,PropertyDatatype type)
+	 {
+	   this.conf=configurable;
+	   this.type=type;
+	 }
+	 
+	 public PropertyDatatype getType()
+	 {
+		 return type;
+	 }
+
+	 public boolean isConfigurable()
+	 {
+	   return conf;
+	 }
+
 }

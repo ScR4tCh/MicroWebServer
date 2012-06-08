@@ -3,5 +3,11 @@
 
     <string name="hello">Hello World, Microwebserver!</string>
     <string name="app_name">MicroWebServer</string>
-
+    <string name="ALLOW_DIRLIST">Allow dirlisting</string>
+    <string name="SERVER_PORTREDIRECT80">Forward to port 80 (requires root)</string>
+	<string name="SERVER_PORT">Server Port (Must be >1024)</string>
+	<string name="SERVER_WORKERS">Max. worker threads (min 2)</string>
+	<string name="SERVER_ROOT">Webserver root directory</string>
+	<string name="TOKEN_EXPIRATION">Login Token expiration time</string>
+	<string name="INDEX_NAME">filename for index (default \"index\") without extension</string>
 </resources>

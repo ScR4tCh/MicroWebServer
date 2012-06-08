@@ -12,7 +12,7 @@
     />
     
     <Spinner
-        android:id="@+id/maxlevel_spin"
+        android:id="@+id/minlevel_spin"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:drawSelectorOnTop="true" />
@@ -26,7 +26,7 @@
     
     
     <Spinner
-        android:id="@+id/minlevel_spin"
+        android:id="@+id/maxlevel_spin"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:drawSelectorOnTop="true"

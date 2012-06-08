@@ -31,13 +31,14 @@ import net.zeminvaders.lang.runtime.ZemObject;
 
 public class ZHTMProcessor
 {
-	public static String process(ZHTMLZemInterpreter interpreter,WebConnection wb,String s) throws ZHTMLException
+	
+	public static String process(ZHTMLZemInterpreter interpreter,WebConnection wb,String s,ZemObject result) throws ZHTMLException
 	{
 //		System.err.println("-----------------------------------------------------------");
 //		System.err.println(s);
 //		System.err.println("-----------------------------------------------------------");
 		
-		Pattern ps = Pattern.compile("(<\\?zem){1}");
+		Pattern ps = Pattern.compile("(<\\?z3m){1}");
 		Matcher ms = ps.matcher(s);
 		
 		StringBuffer html = new StringBuffer();
@@ -48,7 +49,7 @@ public class ZHTMProcessor
 			html.append(s.substring(i,ms.start()));
 			i=s.indexOf("?>",ms.start())+2;
 			String script=s.substring(ms.start()+7,i-2);
-			html.append(processScript(script,interpreter));
+			html.append(processScript(script,interpreter,result));
 		}
 			
 		if(i==0)
@@ -59,13 +60,13 @@ public class ZHTMProcessor
 		return html.toString();
 	}
 	
-	public static String process(WebConnection wb,String s) throws ZHTMLException
+	public static String process(WebConnection wb,String s,ZemObject result) throws ZHTMLException
 	{
 		ZHTMLZemInterpreter interpreter = new ZHTMLZemInterpreter(wb);
-		return process(interpreter,wb,s);
+		return process(interpreter,wb,s,result);
 	}
 
-	private static String processScript(final String script,final Interpreter interpreter) throws ZHTMLException
+	private static String processScript(final String script,final Interpreter interpreter,ZemObject result) throws ZHTMLException
 	{
 		
 		StringWriter s = new StringWriter();
@@ -73,7 +74,7 @@ public class ZHTMProcessor
 		
 		try
 		{
-			ZemObject r = interpreter.eval(script);
+			result = interpreter.eval(script);
 			
 			//if resulting object comes from an include function ... append !
 //			if(r instanceof ZemIncludeString)
