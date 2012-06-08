@@ -15,7 +15,7 @@ There is also the possebility to add "static" webservices (like a REST interface
 provide a plugin interafce to allow script and webservice extentions
 (maybe by intent to register "app specific" services/extensions).
 
-PHP support *could* possibly be added through AIDL, although it might not be very useful because of missing mysql/gd/..
+PHP support *could* possibly be added through SL4A (https://code.google.com/p/android-scripting/ , http://phpforandroid.net/), although it might not be very useful because of missing mysql/gd/.. ?!?
 I will do some "researches" for what might be possible. 
 
 The following projects are referenced within the code
