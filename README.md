@@ -5,13 +5,13 @@ The UI is for controlling (start/stop),logs,settings,etc (working on more stuff)
 
 There is rudimentary scripting support using Z3MScript (a fork of zemscript).
 
-The webserver itself runs in an Android service and maight be forwarded to Port 80 (if root !) by iptable rules.
-It's yet relatively stable and supports Connection: keep-alive as well as resumeable downloads (range header).
+The webserver itself runs in an Android service. The listening socket might be forwarded to port 80 (if root !) by iptable rules.
+It's yet relatively stable and supports "Connection: keep-alive" (HTTP/1.1) as well as resumeable downloads (range header).
 The webroot may be configured.
 Android resources can be cached and displayed (at this time drawables). Directorylisting is supported and may
 be configured (on/off).
 
-There is also the possebility to add "static" webservices (like a REST interface), my plan for the future is to
+There is also the possebility to add "static path" webservices (like a REST interface), my plan for the future is to
 provide a plugin interafce to allow script and webservice extentions
 (maybe by intent to register "app specific" services/extensions).
 
