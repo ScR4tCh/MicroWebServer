@@ -62,9 +62,10 @@ public class MicroWebServer implements Runnable
 		//no listener will notice ...
 		startUp(false);
 		
-		
-		mimeDetect = new MimeDetector(ServerProperties.getInstance().getString(PropertyNames.MAGICMIME_FILE.toString()));
-		
+		try
+		{
+			mimeDetect = new MimeDetector(ServerProperties.getInstance().getString(PropertyNames.MAGICMIME_FILE.toString()));
+		}catch(Exception e){/*TODO: LOG !*/}
 		
 		ssock=new ServerSocket(ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORT.toString()));
 		
@@ -337,5 +338,10 @@ public class MicroWebServer implements Runnable
 	public MimeDetector getMimeDetector()
 	{
 		return mimeDetect;
+	}
+	
+	public void setMimeDetector(MimeDetector mimeDetect)
+	{
+		this.mimeDetect=mimeDetect;
 	}
 }

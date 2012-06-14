@@ -52,9 +52,9 @@ public class DateFormatFunction extends MicroWebServerFunction
 	public String getParameterName(int index)
 	{
 		if(index==0)
-			return "format";
-		else
 			return "millis";
+		else
+			return "format";
 	}
 
 }

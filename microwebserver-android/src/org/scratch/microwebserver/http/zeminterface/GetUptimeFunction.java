@@ -30,7 +30,7 @@ public class GetUptimeFunction extends MicroWebServerFunction
 	@Override
 	public ZemObject eval(Interpreter interpreter,SourcePosition pos) throws ZHTMLException
 	{
-		return new ZemNumber(mws.getUptime()/1000/1000);
+		return new ZemNumber(mws.getUptime());
 	}
 
 	@Override

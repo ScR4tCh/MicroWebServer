@@ -22,6 +22,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.res.Resources;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Parcelable;
@@ -122,10 +123,14 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 					
 					TypedValue tv = new TypedValue();
 					
-					//fgcol (line/footer)
-					getApplicationContext().getTheme().resolveAttribute(android.R.attr.colorActivatedHighlight, tv, true);
-			        indicator.setFooterColor(getResources().getColor(tv.resourceId));
-			        
+					
+					try
+					{
+						//fgcol (line/footer)
+						getApplicationContext().getTheme().resolveAttribute(android.R.attr.colorActivatedHighlight, tv, true);
+						indicator.setFooterColor(getResources().getColor(tv.resourceId));
+					}
+					catch(Resources.NotFoundException rnfe){}
 			        
 			        indicator.setFooterLineHeight(1 * density); //1dp
 			        indicator.setFooterIndicatorHeight(2 * density); //2dp
@@ -133,9 +138,15 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 			        
 			        //textcol
 			        TypedValue tv2 = new TypedValue();
-			        getApplicationContext().getTheme().resolveAttribute(android.R.attr.colorActivatedHighlight, tv2, true);
-			        indicator.setTextColor(getResources().getColor(tv2.resourceId));
 			        
+			        try
+			        {
+			        	getApplicationContext().getTheme().resolveAttribute(android.R.attr.colorActivatedHighlight, tv2, true);
+			        	indicator.setTextColor(getResources().getColor(tv2.resourceId));
+			        }
+					catch(Resources.NotFoundException rnfe){}
+			        
+					
 			        //selectedtextcol
 			        TypedValue tv3 = new TypedValue();
 			        getApplicationContext().getTheme().resolveAttribute(android.R.attr.colorForeground, tv3, true);

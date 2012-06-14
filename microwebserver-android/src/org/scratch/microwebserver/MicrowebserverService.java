@@ -23,6 +23,7 @@ import org.scratch.microwebserver.http.MicroWebServer;
 import org.scratch.microwebserver.http.MicroWebServerListener;
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
+import org.scratch.microwebserver.util.MimeDetector;
 
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -69,6 +70,9 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 			{
 				server=new MicroWebServer();
 				server.addMicroWebServerListener(MicrowebserverService.this);
+				
+				server.setMimeDetector(new MimeDetector(getResources().openRawResource(R.raw.magic)));
+				
 				createNotification("serving ...");
 				return true;
 			}

@@ -62,8 +62,10 @@ public class ZHTMLZemInterpreter extends Interpreter
 		
 		List<ZemObject> elements = new ArrayList<ZemObject>();
 		String[] getp = wb.getGetRequest();
-		for(int i=0;i<getp.length;i++)
-			elements.add(new ZemString(getp[i]));
+		
+		if(getp!=null)
+			for(int i=0;i<getp.length;i++)
+				elements.add(new ZemString(getp[i]));
 		
 		symbolTable.put("dateFormat", new DateFormatFunction());
 		symbolTable.put("getPath", new ZemArray(elements));

@@ -8,8 +8,9 @@
 	<classpathentry kind="lib" path="libs/zemfork.jar"/>
 	<classpathentry kind="lib" path="libs/sqldroid-0.1.jar"/>
 	<classpathentry kind="lib" path="libs/android-support-v4.jar"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/com_viewpagerindicator"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/android-file-chooser"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/microwebserver-Z3MPlugin"/>
+	<classpathentry kind="lib" path="/viewpager-indicator/bin/classes"/>
+	<classpathentry kind="lib" path="/android-file-chooser/bin/classes"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/com_viewpagerindicator"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>
