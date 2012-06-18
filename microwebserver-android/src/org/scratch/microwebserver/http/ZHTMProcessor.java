@@ -63,6 +63,7 @@ public class ZHTMProcessor
 	public static String process(WebConnection wb,String s,ZemObject result) throws ZHTMLException
 	{
 		ZHTMLZemInterpreter interpreter = new ZHTMLZemInterpreter(wb);
+		wb.setHeaderField("Content-Type",interpreter.getResultMimeType());
 		return process(interpreter,wb,s,result);
 	}
 

@@ -48,6 +48,7 @@ import net.zeminvaders.lang.runtime.ZemObject;
 
 import org.scratch.microwebserver.data.Cache;
 import org.scratch.microwebserver.data.DBManager;
+import org.scratch.microwebserver.data.DatabaseManagerException;
 import org.scratch.microwebserver.http.zeminterface.ZHTMLException;
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
@@ -91,7 +92,7 @@ public class WebConnection
 	//private boolean post=false;
 	private Map<String,String> cookie = new HashMap<String,String>();
 	private Map<String,String> setCookie = new HashMap<String,String>();
-	private Map<String,String> extras = new HashMap<String,String>();
+	private Map<String,String> headerFields = new HashMap<String,String>();
 	private int statuscode=200;
 	
 	//request type
@@ -109,7 +110,7 @@ public class WebConnection
 	private Map<String,String> getData = new HashMap<String,String>();
 	private OutputStream out;
 	private StringBuffer outBuffer = new StringBuffer();
-	private DBManager database=DBManager.getInstance(ServerProperties.getInstance().getString(PropertyNames.DATABASE_URL.toString()));
+	private DBManager database;
 	private WebServices services = WebServices.getInstance();
 	
 	//reply specific
@@ -130,6 +131,18 @@ public class WebConnection
 	
 	public WebConnection(final Socket sock,final MicroWebServer server)throws IOException
 	{
+
+		try
+		{
+			database=DBManager.getInstance(ServerProperties.getInstance().getString(PropertyNames.DATABASES_PATH.toString()));
+		}
+		catch(DatabaseManagerException e)
+		{
+			// TODO log: WARN !
+			
+			e.printStackTrace();
+		}
+					
 		this.server=server;
 		this.mimeDetect=server.getMimeDetector();
 		this.sock=sock;
@@ -334,7 +347,7 @@ public class WebConnection
 					sb+=b+"\n";		
 				bin.close();
 				
-				sendBuffer.append(""+EOL);
+				//sendBuffer.append(""+EOL);
 				
 				try
 				{
@@ -352,36 +365,37 @@ public class WebConnection
 					return;
 				 }
 				
+				//create header
+				
 				send(HTTPID+statuscode);
 				send(HEAD_SERVER+IDENTIFIER);
 				send(HEAD_DATE+dateFormat.format(new Date(System.currentTimeMillis())));
 				send(HEAD_CONNECTION+(keep_alive?CONN_KEEP:CONN_CLOSE));
-				sendExtras();
 				
+				byte[] sbb = sendBuffer.toString().getBytes();
 				
-				if(statuscode>=200 && statuscode<300)
+				send(HEAD_CONTENTLENGTH+sbb.length);
+				sendExtraHeaderFields();
+				
+					
+				if(setCookie.size()>0)
 				{
-					send(HEAD_CONTENTTYPE+"text/html");
-					
-					if(setCookie.size()>0)
+					String cookie ="";
+					Iterator<String> cookieIt = setCookie.keySet().iterator();
+					while(cookieIt.hasNext())
 					{
-						String cookie ="";
-						Iterator<String> cookieIt = setCookie.keySet().iterator();
-						while(cookieIt.hasNext())
-						{
-							String k = cookieIt.next();
-							cookie+=k+"="+setCookie.get(k);
+						String k = cookieIt.next();
+						cookie+=k+"="+setCookie.get(k);
 							
-							if(cookieIt.hasNext())
-								cookie+=";";
-						}
-						
-						send(HEAD_SETCOOKIE+cookie);
+						if(cookieIt.hasNext())
+							cookie+=";";
 					}
-					
-	
-					send(sendBuffer.toString());
+						
+					send(HEAD_SETCOOKIE+cookie);
 				}
+				send(""); //end header
+	
+				sendBuffer(sbb);
 			}
 			else
 			{
@@ -389,7 +403,7 @@ public class WebConnection
 				serveFile(f,byteFrom,byteTo);
 			}
 			
-			close();
+			close(false);
 		}
 		else
 		{
@@ -420,7 +434,7 @@ public class WebConnection
 				{
 					//TODO: check for range header
 					serveFile(Cache.getInstance().getCached(params[1]),byteFrom,byteTo);
-					close();
+					close(false);
 				}
 				else
 				{
@@ -443,7 +457,7 @@ public class WebConnection
 
 	private synchronized void sendOK(byte[] data,String mime,boolean close) throws IOException
 	{
-		send(HTTPID+"200");
+		send(HTTPID+200);
 		send(HEAD_SERVER+IDENTIFIER);
 		send(HEAD_DATE+dateFormat.format(new Date(System.currentTimeMillis())));
 		send(HEAD_CONNECTION+(keep_alive?CONN_KEEP:CONN_CLOSE));
@@ -455,7 +469,7 @@ public class WebConnection
 		
 		send(HEAD_CONTENTLENGTH+data.length);
 		
-		sendExtras();
+		sendExtraHeaderFields();
 		
 		send("");
 		
@@ -463,12 +477,12 @@ public class WebConnection
 			send(data);
 		
 		if(close)
-			close();
+			close(false);
 	}
 	
 	private synchronized void sendOK(long l,StringBuffer data,String mime,boolean close) throws IOException
 	{
-		send(HTTPID+"200");
+		send(HTTPID+200);
 		send(HEAD_SERVER+IDENTIFIER);
 		send(HEAD_DATE+dateFormat.format(new Date(System.currentTimeMillis())));
 		send(HEAD_CONNECTION+(keep_alive?CONN_KEEP:CONN_CLOSE));
@@ -480,7 +494,7 @@ public class WebConnection
 		
 		send(HEAD_CONTENTLENGTH+l);
 		
-		sendExtras();
+		sendExtraHeaderFields();
 		
 		send("");
 		
@@ -488,7 +502,7 @@ public class WebConnection
 			send(data.toString());
 		
 		if(close)
-			close();
+			close(false);
 	}
 	
 	private String constructErrorPage(int errno,String errdetails)
@@ -715,6 +729,11 @@ public class WebConnection
 		}
 		
 	}
+	
+	private void sendBuffer(byte[] sb)
+	{
+		outBuffer.append(new String(sb));
+	}
 			
 	private void send(String command) throws IOException
 	{
@@ -798,17 +817,21 @@ public class WebConnection
 		send("");
 		if(message!=null)
 			send(message);
-		close();
+		
+		if(no>=299)
+			close(true);
+		else
+			close(false);
 	}
 	
-	public synchronized void close() throws IOException
+	public synchronized void close(boolean force) throws IOException
 	{
 		out.write(outBuffer.toString().getBytes());
 		out.flush();
 		
 		processing=false;
 		
-		if(!keep_alive)
+		if(!keep_alive || force)
 		{
 			out.close();
 			in.close();
@@ -884,13 +907,13 @@ public class WebConnection
 		setCookie.put(key,value);
 	}
 	
-	private void sendExtras() throws IOException
+	private void sendExtraHeaderFields() throws IOException
 	{
-		Iterator<String> ki = extras.keySet().iterator();
+		Iterator<String> ki = headerFields.keySet().iterator();
 		while(ki.hasNext())
 		{
 			String k = ki.next();
-			send(k+": "+extras.get(k));
+			send(k+": "+headerFields.get(k));
 		}
 	}
 
@@ -899,9 +922,9 @@ public class WebConnection
 		return cookie.get(string);
 	}
 
-	public void setExtra(String key,String value)
+	public void setHeaderField(String key,String value)
 	{
-		extras.put(key,value);
+		headerFields.put(key,value);
 	}
 
 	public void setStatusCode(int i)
@@ -944,7 +967,7 @@ public class WebConnection
 		outBuffer=new StringBuffer();
 		cookie.clear();
 		setCookie.clear();
-		extras.clear();
+		headerFields.clear();
 		statuscode=200;
 		
 		header.clear();

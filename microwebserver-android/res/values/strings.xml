@@ -3,11 +3,19 @@
 
     <string name="hello">Hello World, Microwebserver!</string>
     <string name="app_name">MicroWebServer</string>
+    <string name="app_name_settings">Log settings</string>
+    <string name="app_name_logsettings">MicroWebServer Settings</string>
     <string name="ALLOW_DIRLIST">Allow dirlisting</string>
     <string name="SERVER_PORTREDIRECT80">Forward to port 80 (requires root)</string>
 	<string name="SERVER_PORT">Server Port (Must be >1024)</string>
 	<string name="SERVER_WORKERS">Max. worker threads (min 2)</string>
 	<string name="SERVER_ROOT">Webserver root directory</string>
 	<string name="TOKEN_EXPIRATION">Login Token expiration time</string>
-	<string name="INDEX_NAME">filename for index (default \"index\") without extension</string>
+	<string name="INDEX_NAME">Filename for index (default \"index\") without extension</string>
+	<string name="SERVER_SSLENABLE">Enable SSL-Port</string>
+	<string name="SERVER_PORTSSL">SSL-Port number</string>
+	<string name="SERVER_KEYSTORE">Keystore file for certificate</string>
+	<string name="SSL_KEYSTOREPASS">Keystore password</string>
+	<string name="SERVER_PORTREDIRECT443">Redirect SSL-Port to 443 (requires root)</string>
+	
 </resources>

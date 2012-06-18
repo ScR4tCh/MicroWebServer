@@ -11,26 +11,25 @@
  */
 package org.scratch.microwebserver.http;
 
-import java.io.BufferedInputStream;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.ServerSocket;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
 import java.util.Vector;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
-import javax.net.ssl.TrustManagerFactory;
 
+import org.scratch.microwebserver.LogEntry;
 import org.scratch.microwebserver.RootCommands;
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
@@ -54,11 +53,14 @@ public class MicroWebServer implements Runnable
 	
 	private MimeDetector mimeDetect;
 	
+	private String sslmsgs="";
+	
 	//listen !
 	private Vector<MicroWebServerListener> wbls = new Vector<MicroWebServerListener>();
+	private Vector<LogEntry> preLogs = new Vector<LogEntry>();
 	
 	public MicroWebServer() throws IOException
-	{	
+	{
 		//no listener will notice ...
 		startUp(false);
 		
@@ -79,93 +81,40 @@ public class MicroWebServer implements Runnable
 		
 		if(ServerProperties.getInstance().getBoolean(PropertyNames.SERVER_SSLENABLE.toString()))
 		{
-
 			try
 			{
-				FileInputStream fis = new FileInputStream(ServerProperties.getInstance().getString(PropertyNames.SERVER_SSLCERT.toString()));
-				BufferedInputStream bis = new BufferedInputStream(fis);
-				CertificateFactory cf;
-				
-				KeyStore ks = KeyStore.getInstance("BKS");
-				ks.load(null,null);
-				
-				KeyManagerFactory kmf =  KeyManagerFactory.getInstance("X509");
-				kmf.init(ks, null);
-				
-				cf=CertificateFactory.getInstance( "X.509" );
-				Certificate cert = null;
-				
-				while ( bis.available() > 0 )
+				sslssock=setupSSLServerSocket(ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORTSSL.toString()),new FileInputStream(ServerProperties.getInstance().getString(PropertyNames.SERVER_KEYSTORE.toString())), ServerProperties.getInstance().getString(PropertyNames.SSL_KEYSTOREPASS.toString()));
+				if(sslssock!=null)
 				{
-				 cert = cf.generateCertificate( bis );
-				 ks.setCertificateEntry( "SGCert", cert );
+					if(ServerProperties.getInstance().getBoolean(PropertyNames.SERVER_PORTREDIRECT443.toString()))
+						RootCommands.execute("iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port "+ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORTSSL.toString()),null,null);
+					
+					
+					webworkerSSL = new Thread(this);
+					webworkerSSL.start();
 				}
-				
-				ks.setCertificateEntry( "SGCert", cert );
-				
-				TrustManagerFactory tmf = TrustManagerFactory.getInstance( "X509" );
-				tmf.init( ks );
-							
-				SSLContext sslContext = SSLContext.getInstance( "TLS" );
-				sslContext.init( kmf.getKeyManagers(), tmf.getTrustManagers(),null );
-							
-				SSLServerSocketFactory sf = sslContext.getServerSocketFactory();
-				sslssock = (SSLServerSocket)sf.createServerSocket( ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORTSSL.toString()) );
-				
-				
-				webworkerSSL = new Thread(this);
-				webworkerSSL.start();
-				
-			}
-			catch(CertificateException e)
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			catch(KeyStoreException e)
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			catch(NoSuchAlgorithmException e)
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			catch(KeyManagementException e)
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			catch(IOException e)
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			catch(UnrecoverableKeyException e)
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			
-		}
-		
-		//int workers = ServerProperties.getInstance().getInt(PropertyNames.SERVER_WORKERS);
-		//if(workers<1)
-		//	workers=1;
-		
-//		for(int i=0;i<workers;i++)
-//		{
-//			WebConnectionsList slist = new WebConnectionsList(this);
-//			Thread list=new Thread(slist);
-//			list.start();
-//		}
-		
+				else
+				{
+					log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_ERROR,null,sslmsgs);
+				}
+			}catch(Exception e)
+			 {
+				log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_ERROR,null,"Setting up SSL failed: "+e.getMessage());
+			 }
+		}		
 		
 		startTime=System.currentTimeMillis();
 		
 		//no listener will notice ...
 		startUp(true);
+	}
+	
+	public synchronized Vector<LogEntry> fetchPreLogs()
+	{
+		Vector<LogEntry> ret = new Vector<LogEntry>(preLogs);
+		preLogs.clear();
+		
+		return ret;
 	}
 	
 	
@@ -226,9 +175,7 @@ public class MicroWebServer implements Runnable
 	
 	public void removeConnection(WebConnection c)
 	{
-		//Logger.getLogger("carma.remote").info("removing web connection "+c.toString());
-		connections.remove(c);
-		
+		connections.remove(c);	
 	}
 	
 	public boolean isOnline()
@@ -270,6 +217,11 @@ public class MicroWebServer implements Runnable
 				deleteRules(ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORT.toString()));
 			}
 			
+			if(ServerProperties.getInstance().getBoolean(PropertyNames.SERVER_PORTREDIRECT443.toString()))
+			{
+				deleteRules(ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORTSSL.toString()));
+			}
+			
 		}
 		catch(InterruptedException e)
 		{
@@ -308,6 +260,9 @@ public class MicroWebServer implements Runnable
 	
 	protected void log(long t,int level,WebConnection wc,String msg)
 	{
+		if(wbls.size()==0)
+			preLogs .add(new LogEntry(t,level,msg,"",""));
+		
 		for(int i=0;i<wbls.size();i++)
 			wbls.elementAt(i).log(t,level,wc.getRequestingAddr(),wc.getRequest(),msg);
 	}
@@ -321,7 +276,9 @@ public class MicroWebServer implements Runnable
 	private void shutDown(boolean b)
 	{
 		for(int i=0;i<wbls.size();i++)
+		{
 			wbls.elementAt(i).shutDown(b);
+		}
 	}
 	
 	public void addMicroWebServerListener(MicroWebServerListener wcl)
@@ -344,4 +301,67 @@ public class MicroWebServer implements Runnable
 	{
 		this.mimeDetect=mimeDetect;
 	}
+	
+	private SSLServerSocket setupSSLServerSocket(int port,final InputStream is,String pw)
+	{
+		
+		try
+		{
+			SSLContext sslContext = SSLContext.getInstance( "TLS" );
+			
+			KeyManagerFactory km = KeyManagerFactory.getInstance("X509");
+			
+			KeyStore ks = KeyStore.getInstance("PKCS12");
+			
+			ks.load(is,pw.toCharArray());
+			km.init(ks, PropertyNames.SSL_KEYSTOREPASS.toString().toCharArray());
+			
+			sslContext.init(km.getKeyManagers(), null, null);
+			
+			SSLServerSocketFactory f = sslContext.getServerSocketFactory();
+			
+			SSLServerSocket ss = (SSLServerSocket) f.createServerSocket(port);
+			
+			return ss;
+			
+		}
+		catch (UnrecoverableKeyException e)
+		{
+			sslmsgs+=e.getClass().getSimpleName()+": "+e.getMessage()+"\n";
+			//e.printStackTrace();
+		}
+		catch (KeyManagementException e)
+		{
+			sslmsgs+=e.getClass().getSimpleName()+": "+e.getMessage()+"\n";
+			//e.printStackTrace();
+		}
+		catch (NoSuchAlgorithmException e)
+		{
+			sslmsgs+=e.getClass().getSimpleName()+": "+e.getMessage()+"\n";
+			//e.printStackTrace();
+		}
+		catch (KeyStoreException e)
+		{
+			sslmsgs+=e.getClass().getSimpleName()+": "+e.getMessage()+"\n";
+			//e.printStackTrace();
+		}
+		catch (CertificateException e)
+		{
+			sslmsgs+=e.getClass().getSimpleName()+": "+e.getMessage()+"\n";
+			//e.printStackTrace();
+		}
+		catch (FileNotFoundException e)
+		{
+			sslmsgs+=e.getClass().getSimpleName()+": "+e.getMessage()+"\n";
+			//e.printStackTrace();
+		}
+		catch (IOException e)
+		{
+			sslmsgs+=e.getClass().getSimpleName()+": "+e.getMessage()+"\n";
+			//e.printStackTrace();
+		}
+		
+		return null;
+	}
+
 }

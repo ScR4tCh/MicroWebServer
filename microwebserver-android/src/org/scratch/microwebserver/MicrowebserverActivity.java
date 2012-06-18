@@ -11,6 +11,8 @@
  */
 package org.scratch.microwebserver;
 
+import java.util.Arrays;
+
 import org.scratch.microwebserver.MicrowebserverService.MicrowebserverServiceBinder;
 import org.scratch.microwebserver.properties.PropertyNames;
 
@@ -23,6 +25,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.res.Resources;
+
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Parcelable;
@@ -49,7 +52,7 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
     
     private ViewPager pager;
     private ImageView statusImage;
-    private TextView statusText;
+    private TextView statusText,socketInfo;
     
     //view pager views
     private ListView logList;
@@ -87,7 +90,9 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 					binder=((MicrowebserverServiceBinder)service);
 					
 					runOnUiThread(new Runnable(){public void run(){pd = ProgressDialog.show(MicrowebserverActivity.this, "Parsing Logs..", "stand by", true, false);}});
-					lea = new LogEntryAdapter(binder.getLogFile(),binder.getServerStartTime(), 86400000); //24h history
+					
+					//global adapter ;)
+					lea = binder.getLogEntryAdapter();
 					runOnUiThread(new Runnable(){public void run(){pd.dismiss();}});
 					
 					
@@ -99,6 +104,7 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 					statusImage=(ImageView)findViewById(R.id.StatusImage);
 					statusImage.setOnClickListener(MicrowebserverActivity.this);
 					statusText=(TextView)findViewById(R.id.statusText);
+					socketInfo=(TextView)findViewById(R.id.socketInfo);
 					//logList=(ListView)findViewById(R.id.logList);
 					logList.setAdapter(lea);
 					
@@ -129,6 +135,7 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 						//fgcol (line/footer)
 						getApplicationContext().getTheme().resolveAttribute(android.R.attr.colorActivatedHighlight, tv, true);
 						indicator.setFooterColor(getResources().getColor(tv.resourceId));
+						//logList.getDivider().setColorFilter(getResources().getColor(tv.resourceId),Mode.MULTIPLY);
 					}
 					catch(Resources.NotFoundException rnfe){}
 			        
@@ -165,6 +172,7 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 									public void run()
 									{
 										statusText.setText("Started");
+										socketInfo.setText(Arrays.toString(binder.getListeningAdresses().toArray()));
 										statusImage.setImageResource(R.drawable.indicator_started);
 									}
 								}
@@ -178,6 +186,7 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 									public void run()
 									{
 										statusText.setText("Stopped");
+										socketInfo.setText("");
 										statusImage.setImageResource(R.drawable.indicator_stopped);
 									}
 								}
@@ -221,7 +230,7 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
     @Override
     public void onDestroy()
     {
-    	if(sconn!=null)
+    	if(sconn!=null && binder!=null)
     	{
     		binder.unregisterServiceListener(this);
     		unbindService(sconn);
@@ -245,6 +254,7 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 											public void run()
 											{
 												statusText.setText("Started");
+												socketInfo.setText(Arrays.toString(binder.getListeningAdresses().toArray()));
 												statusImage.setImageResource(R.drawable.indicator_started);
 											}
 										}
@@ -277,16 +287,16 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 			case R.id.menu_settings:
 				Intent si = new Intent(getApplicationContext(),MicroWebServerSettingsActivity.class);
 				si.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-				startActivity(si);
+				startActivityForResult(si,0);
 				
 				return true;
 				
 			case R.id.menu_logs:
 				Intent li = new Intent(getApplicationContext(),LogSettingsActivity.class);
-				li.putExtra(LogSettingsActivity.MINLEVEL,0);
-				li.putExtra(LogSettingsActivity.MAXLEVEL,4);
+				li.putExtra(LogSettingsActivity.MINLEVEL,lea.getMinLevel());
+				li.putExtra(LogSettingsActivity.MAXLEVEL,lea.getMaxLevel());
 				li.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-				startActivity(li);
+				startActivityForResult(li,LogSettingsActivity.SET);
 				
 				return true;
 		}
@@ -295,18 +305,18 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 	}
 
 	@Override
-	public void log(LogEntry le)
+	public void log(final LogEntry le)
 	{
 		if(lea!=null)
 		{
-			lea.log(le);
-			
 			this.runOnUiThread(
 					new Runnable()
 					{
 						public void run()
 						{
-							lea.informObservers();
+							lea.log(le);
+							//logList.requestLayout();
+							//lea.informObservers();
 						}
 					}
 			);
@@ -334,9 +344,21 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 		System.err.println("SERVER SHUTDOWN EVENT "+shutDown);
 		
 		if(!shutDown)
-			runOnUiThread(new Runnable(){public void run(){pd = ProgressDialog.show(MicrowebserverActivity.this, "Stopping Server..", "stand by", true, false);}});
+		{
+			runOnUiThread(new Runnable()
+							  {
+									public void run()
+									{
+										socketInfo.setText("");
+										pd = ProgressDialog.show(MicrowebserverActivity.this, "Stopping Server..", "stand by", true, false);
+									}
+							 }
+						);
+		}
 		else if(shutDown && pd!=null)
+		{
 			pd.dismiss();
+		}
 	}
 	
 	private class APagerAdapter extends PagerAdapter
@@ -432,6 +454,23 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
               return null;
           }
 
+	}
+	
+	public void onActivityResult(int requestCode, int resultCode, Intent data)
+	{	
+		if(resultCode==MicroWebServerSettingsActivity.OK)
+		{
+			if(binder.isServerUp())
+				binder.restartServer();
+		}
+		
+		if(requestCode==LogSettingsActivity.SET && resultCode==LogSettingsActivity.SET)
+		{			
+			int minlevel = data.getIntExtra(LogSettingsActivity.MINLEVEL,-1);
+			int maxlevel = data.getIntExtra(LogSettingsActivity.MAXLEVEL,-1);
+			
+			lea.filter(minlevel,maxlevel);
+		}
 	}
 
 

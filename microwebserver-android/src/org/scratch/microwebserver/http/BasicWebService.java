@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 
 import org.scratch.microwebserver.data.DBManager;
+import org.scratch.microwebserver.data.DatabaseManagerException;
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
 
@@ -27,7 +28,14 @@ public abstract class BasicWebService implements WebService
 	public static final String MIME_URLE="application/x-www-form-urlencoded";
 	
 	
-	protected DBManager database = DBManager.getInstance(ServerProperties.getInstance().getString(PropertyNames.DATABASE_URL.toString()));
+	protected DBManager database;
+	
+	
+	public BasicWebService() throws DatabaseManagerException
+	{
+		database=DBManager.getInstance(ServerProperties.getInstance().getString(PropertyNames.DATABASES_PATH.toString()));
+	}
+	
 	
 	protected boolean checkToken(String token)
 	{

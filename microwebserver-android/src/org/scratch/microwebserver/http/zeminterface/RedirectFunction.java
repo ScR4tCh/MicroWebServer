@@ -32,7 +32,7 @@ public class RedirectFunction extends MicroWebServerFunction
 	{
 		String location = interpreter.getVariable("location", pos).toZString().toString();
         
-		wb.setExtra("Location",location);
+		wb.setHeaderField("Location",location);
 		wb.setStatusCode(307); //307 Temporary Redirect
 		
 		return Interpreter.NULL;

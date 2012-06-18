@@ -18,6 +18,7 @@ import java.util.Map;
 import org.json.scratch.fork.SJSONArray;
 import org.json.scratch.fork.SJSONException;
 import org.json.scratch.fork.SJSONObject;
+import org.scratch.microwebserver.data.DatabaseManagerException;
 import org.scratch.microwebserver.http.BasicWebService;
 import org.scratch.microwebserver.http.WebConnection;
 import org.scratch.microwebserver.http.WebServiceException;
@@ -28,6 +29,12 @@ import org.scratch.microwebserver.http.WebServices;
 
 public class GetUsersService extends BasicWebService
 {
+
+	public GetUsersService() throws DatabaseManagerException
+	{
+		super();
+		// TODO Auto-generated constructor stub
+	}
 
 	@Override
 	public boolean acceptsMethod(int method)

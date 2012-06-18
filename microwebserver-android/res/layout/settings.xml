@@ -1,15 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent" >
+    android:layout_height="match_parent"
+   >
 
-    <LinearLayout
-        android:id="@+id/settingscontent"
+    <RelativeLayout 
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical" >
+	    android:layout_height="match_parent"
+	>
+	    <LinearLayout
+	        android:id="@+id/settingscontent"
+	        android:layout_width="match_parent"
+	        android:layout_height="match_parent"
+	        android:orientation="vertical"
+	        android:layout_margin="5dp" >
+	
+	    </LinearLayout>
 
-    </LinearLayout>
-    
+	    <Button
+	        android:id="@+id/applyBt"
+	        android:layout_width="wrap_content"
+	        android:layout_height="wrap_content"
+	        android:layout_below="@id/settingscontent"
+	        android:layout_centerHorizontal="true"
+	        android:text="apply (server will be restartet)" />
+
+    </RelativeLayout>
 
 </ScrollView>

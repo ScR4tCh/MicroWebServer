@@ -45,8 +45,8 @@ public class LogoutFunction extends MicroWebServerFunction
 		}
 		
 		//redirect
-		wb.setExtra("Location","/");
-		wb.setExtra("Cache-Control","no-cache");
+		wb.setHeaderField("Location","/");
+		wb.setHeaderField("Cache-Control","no-cache");
 		wb.setStatusCode(307);
 		
 		return null;

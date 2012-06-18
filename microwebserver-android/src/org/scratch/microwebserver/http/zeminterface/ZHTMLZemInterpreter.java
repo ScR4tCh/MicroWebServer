@@ -40,6 +40,8 @@ public class ZHTMLZemInterpreter extends Interpreter
 {
 	private WebConnection wb;
 	
+	private String resultmime="text/html";
+	
 	public ZHTMLZemInterpreter(WebConnection wb)
 	{
 		super();
@@ -226,5 +228,15 @@ public class ZHTMLZemInterpreter extends Interpreter
         symbolTable = savedSymbolTable;
 
         return ret;
+	}
+	
+	public String getResultMimeType()
+	{
+		return resultmime;
+	}
+	
+	protected void setResultMimeType(String mime)
+	{
+		resultmime=mime;
 	}
 }

@@ -2,21 +2,27 @@ package org.scratch.microwebserver;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.media.MediaPlayer.OnBufferingUpdateListener;
 import android.os.Bundle;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemSelectedListener;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.Spinner;
 
-public class LogSettingsActivity extends Activity implements OnItemSelectedListener
+public class LogSettingsActivity extends Activity implements OnItemSelectedListener,OnClickListener
 {
 	private Spinner minLevelSpin,maxLevelSpin;
+	private Button applyBt;
 	
 	public static final String MINLEVEL="MIN_LEVEL";
 	public static final String MAXLEVEL="MAX_LEVEL";
+
+	protected static final int SET=2212;
 	
-	private int minLevel,maxLevel;
+	private int minLevel=-1,maxLevel=-1;
 	
 	@Override
     public void onCreate(Bundle savedInstanceState)
@@ -45,6 +51,9 @@ public class LogSettingsActivity extends Activity implements OnItemSelectedListe
         maxLevelSpin.setSelection(maxLevel);
         maxLevelSpin.setOnItemSelectedListener(this);
         
+        applyBt=(Button)findViewById(R.id.button1);
+        applyBt.setOnClickListener(this);
+        
     }
 
 	@Override
@@ -63,6 +72,24 @@ public class LogSettingsActivity extends Activity implements OnItemSelectedListe
 	{
 		// TODO Auto-generated method stub
 		
+	}
+	
+	private void result()
+	{
+		Intent it = new Intent();
+		it.putExtra(MINLEVEL,minLevel-1);
+		it.putExtra(MAXLEVEL,maxLevel-1);
+		
+		setResult(SET,it);
+		
+		finish();
+	}
+
+	@Override
+	public void onClick(View view)
+	{
+		if(view.equals(applyBt))
+			result();
 	}
 
 }

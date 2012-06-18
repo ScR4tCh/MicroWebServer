@@ -4,14 +4,7 @@
     android:layout_height="fill_parent"
     android:orientation="vertical" >
 
-    <ImageView
-        android:id="@+id/imageView1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentRight="true"
-        android:alpha="0.2"
-        android:src="@drawable/ic_launcher" />
+   
 
     <RelativeLayout
         android:id="@+id/relativeLayout1"
@@ -47,7 +40,7 @@
             android:layout_toRightOf="@+id/StatusImage"
             android:gravity="right"
             android:text="Medium Text"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
+            android:textAppearance="?android:attr/textAppearanceSmall" />
 
     </RelativeLayout>
 
@@ -73,24 +66,12 @@
 		android:id="@+id/pagertitles"
 		android:layout_height="wrap_content"
 		android:layout_width="fill_parent"
-		android:layout_below="@id/relativeLayout1"/>
+		android:layout_below="@+id/relativeLayout1"/>
 
     <android.support.v4.view.ViewPager
-		android:layout_width="match_parent"
-		android:layout_height="wrap_content"
-		android:layout_above="@+id/foot"
-		android:layout_below="@+id/pagertitles"
-		android:id="@+id/pager"/>
-
-    <TextView
-        android:id="@+id/foot"
+        android:id="@+id/pager"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentLeft="true"
-        android:layout_marginTop="5dp"
-        android:gravity="center_vertical"
-        android:text=""
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        android:layout_below="@+id/pagertitles" />
 
 </RelativeLayout>

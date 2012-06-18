@@ -19,12 +19,11 @@ import java.util.Iterator;
 import java.util.TreeMap;
 import java.util.Vector;
 
-import org.scratch.microwebserver.data.DBManager;
-import org.scratch.microwebserver.http.WebConnection;
 import org.scratch.microwebserver.util.Base64;
 
 import net.zeminvaders.lang.Interpreter;
 import net.zeminvaders.lang.SourcePosition;
+import net.zeminvaders.lang.ZemException;
 import net.zeminvaders.lang.runtime.Dictionary;
 import net.zeminvaders.lang.runtime.ZemArray;
 import net.zeminvaders.lang.runtime.ZemBoolean;
@@ -34,11 +33,9 @@ import net.zeminvaders.lang.runtime.ZemString;
 
 public class SQLQueryFunction extends MicroWebServerFunction
 {	
-	private DBManager dbm;
 	
-	public SQLQueryFunction(WebConnection wb)
+	public SQLQueryFunction()
 	{
-		dbm=wb.getDatabase();
 	}
 
 	@Override
@@ -52,6 +49,11 @@ public class SQLQueryFunction extends MicroWebServerFunction
 	public ZemObject eval(Interpreter interpreter,SourcePosition pos)
 	{
 		String query = interpreter.getVariable("query", pos).toZString().toString();
+				
+		ZemObject zdbc = interpreter.getVariable("dbconnection", pos);
+		
+		if(!(zdbc instanceof ZemDBConnObject))
+			throw new ZemException("dbconnection must be a valid DatabaseConnection !");
 		
 		if(query!=null)
 		{
@@ -59,7 +61,7 @@ public class SQLQueryFunction extends MicroWebServerFunction
 			
 			try
 			{
-				Vector<TreeMap<String,Object>> res = dbm.doQuery(query);
+				Vector<TreeMap<String,Object>> res = ((ZemDBConnObject)zdbc).getDatabaseConnection().doQuery(query);
 				
 				for(int i=0;i<res.size();i++)
 				{
@@ -108,13 +110,16 @@ public class SQLQueryFunction extends MicroWebServerFunction
 	@Override
 	public int getParameterCount()
 	{
-		return 1;
+		return 2;
 	}
 
 	@Override
 	public String getParameterName(int index)
 	{
-		return "query";
+		if(index==0)
+			return "dbconnection";
+		else
+			return "query";
 	}
 
 }

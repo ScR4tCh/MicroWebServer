@@ -50,17 +50,18 @@ public class ServerProperties
 		
 		//fill with std props			
 		properties.put(PropertyNames.DATABASE_TYPE.toString(),"sqlite"); //TODO: this parameter should define the database type ! 
-		properties.put(PropertyNames.DATABASE_URL.toString(), ROOT+File.separator+"serverdata.sqlite"); // sqlite database file
+		properties.put(PropertyNames.DATABASES_PATH.toString(), ROOT+File.separator+"databases"); // sqlite database file
 		
 		properties.put(PropertyNames.SERVER_PORT.toString(), 8080); // webserver port
 		properties.put(PropertyNames.SERVER_PORTREDIRECT80.toString(), true); // redirect to 80 ? (root required)
-		properties.put(PropertyNames.SERVER_WORKERS.toString(),1); //number of webserver workers
+		properties.put(PropertyNames.SERVER_WORKERS.toString(),2); //number of webserver workers
 		properties.put(PropertyNames.SERVER_ROOT.toString(),ROOT+File.separator+"webroot"); //webroot
 		
-		//experimental crap ...
+		//ssl settings
 		properties.put(PropertyNames.SERVER_SSLENABLE.toString(), false); // enable ssl socket ?
+		properties.put(PropertyNames.SERVER_PORTREDIRECT443.toString(), false); // redirect to 80 ? (root required)
 		properties.put(PropertyNames.SERVER_PORTSSL.toString(), 44300); // webserver ssl port
-		properties.put(PropertyNames.SERVER_SSLCERT.toString(), ROOT+File.separator+"debug.cert");
+		properties.put(PropertyNames.SERVER_KEYSTORE.toString(), ROOT+File.separator+"debug.cert");
 		
 		//mime magic file
 		properties.put(PropertyNames.MAGICMIME_FILE.toString(), ROOT+File.separator+"magic.mime");

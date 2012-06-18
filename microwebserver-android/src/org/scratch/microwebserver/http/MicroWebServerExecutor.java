@@ -6,6 +6,10 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import javax.net.ssl.SSLException;
+
+import org.scratch.microwebserver.data.DatabaseManagerException;
+
 //THX FOR THE CODE : http://konstantin.filtschew.de/blog/2009/06/14/mit-threadpoolexecutor-arbeit-unter-java-effizient-parallelisieren/
 
 public class MicroWebServerExecutor
@@ -74,14 +78,14 @@ public class MicroWebServerExecutor
 					conn.reset();
 				}
 				
-				conn.close();
+				conn.close(false);
 			}catch(SocketTimeoutException ste)
 			 {
 				try
 				{
 					conn.log(MicroWebServerListener.LOGLEVEL_NORMAL,"connection timeout: "+conn.sock.getInetAddress());
 					conn.setKeepAlive(false);
-					conn.close();
+					conn.close(false);
 				}
 				catch(IOException e)
 				{
@@ -89,8 +93,13 @@ public class MicroWebServerExecutor
 				}
 				 server.removeConnection(conn);
 			 }
+			 catch(SSLException ssle)
+			 {
+				conn.log(MicroWebServerListener.LOGLEVEL_WARN,"SSL Issue: "+ssle.getMessage());
+			 }
 			 catch (IOException e)
 			 {
+				//e.printStackTrace();
 				conn.log(MicroWebServerListener.LOGLEVEL_WARN,"I/O Failure: "+e.getMessage());
 			 }
 			

@@ -11,16 +11,16 @@
  */
 package org.scratch.microwebserver;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Vector;
 
+import org.scratch.microwebserver.data.DBManager;
+import org.scratch.microwebserver.data.DatabaseManagerException;
 import org.scratch.microwebserver.http.MicroWebServerListener;
+import org.scratch.microwebserver.properties.PropertyNames;
+import org.scratch.microwebserver.properties.ServerProperties;
 
 import android.content.Context;
 import android.database.DataSetObserver;
@@ -34,11 +34,9 @@ import android.widget.TextView;
 public class LogEntryAdapter implements ListAdapter
 {
 	private int minlevel=-1,maxlevel=-1;
-	private long bwhistory;
+	private long maxhistory;
 	private long createTime;
-	
-	private String logfile;
-	
+		
 	private Vector<LogEntry> logs;
 	private Vector<LogEntry> workingSet;
 	
@@ -49,81 +47,86 @@ public class LogEntryAdapter implements ListAdapter
 	 * @param refreshRate	the refresh rate the logfile should be polled for logs (-1 for direct update)
 	 * @param maxhistory  the maximum "backward history" in milliseconds [UTC]
 	 */
-	public LogEntryAdapter(String logfile,long createTime,long maxhistory)
+	public LogEntryAdapter(long createTime,long maxhistory)
 	{
 		this.createTime=createTime;
-		bwhistory=createTime-maxhistory;
-		
-		this.logfile=logfile;
-		
-		readLog();
-			
+		this.maxhistory=maxhistory;
+				
+		readLogs();
+					
 	}
 	
-	private void readLog()
+	private void readLogs()
 	{
-		logs = new Vector<LogEntry>();
-		workingSet = new Vector<LogEntry>();
 		
-		File fi = new File(logfile);
-		if(fi.exists())
+		try
 		{
-			try
-			{
-				BufferedReader bin = new BufferedReader(new InputStreamReader(new FileInputStream(fi)));
-			
-				String line;
-				/**
-				 * LOG FORMAT:
-				 * 
-				 * time(ms)|level|msg|addr|req
-				 * 
-				 */
-				while((line=bin.readLine())!=null)
-				{
-					line.replaceAll("\\\\|","----DELIM----");
-					String[] cols = line.split("\\|");
-					if(cols.length>=5) //>= ??? possible extra info at the future ???
-					{
-						long t = Long.parseLong(cols[0]);
-						
-						//skip stuff we don't care about !!!
-						if(t<bwhistory || bwhistory==-1)
-							continue;
-						
-						int l = Integer.parseInt(cols[1]);
-						
-						LogEntry le = new LogEntry(t,l,cols[2].replaceAll("----DELIM----","\\|").replaceAll("\\\\n","\n"),cols[4],cols[3]);
-						
-						logs.add(le);
-						if(checkLevel(le))
-							workingSet.add(le);
-					}
-				}
-			}
-			catch(IOException ioe)
-			{
-				
-			}
+			logs=DBManager.getInstance(ServerProperties.getInstance().getString(PropertyNames.DATABASES_PATH.toString())).getLogs(createTime,maxhistory,minlevel,maxlevel);
+			workingSet = new Vector<LogEntry>(logs);
 		}
+		catch(SQLException e)
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		catch(DatabaseManagerException e)
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 	}
 	
 	public void filter(long maxhistory)
-	{
-		if(maxhistory==-1)
-			bwhistory=-1;
-		else
-			bwhistory=createTime-maxhistory;
+	{	
+		this.maxhistory=maxhistory;
 		
-		readLog();
+		readLogs();
+		
+		informObservers();
 	}
 	
-	public void filter(int minlevel,int maxlevel)
+	public void filter(int min,int max)
 	{
-		this.minlevel=minlevel;
-		this.maxlevel=maxlevel;
 		
-		//TODO: implement !
+		if(this.minlevel==min && this.maxlevel==max)
+			return;
+		
+		this.minlevel=min;
+		this.maxlevel=max;
+		
+		if(minlevel==-1 && maxlevel==-1)
+		{
+			workingSet=new Vector<LogEntry>(logs);
+		}
+		else
+		{
+			workingSet = new Vector<LogEntry>();
+			
+			for(int i=0;i<logs.size();i++)
+			{
+				int l = logs.elementAt(i).getLevel();
+				if(minlevel!=-1 && maxlevel==-1)
+				{
+					if(l>=minlevel)
+						workingSet.add(logs.elementAt(i));
+				}
+				else if(minlevel==-1 && maxlevel!=-1)
+				{
+					if(l<=maxlevel)
+						workingSet.add(logs.elementAt(i));
+				}
+				else
+				{
+					if(l>=minlevel && l<=maxlevel)
+						workingSet.add(logs.elementAt(i));
+				}
+			}
+		}
+		
+		for(int i=0;i<observers.size();i++)
+			observers.elementAt(i).onInvalidated();
+		
 	}
 	
 	private boolean checkLevel(LogEntry le)
@@ -142,12 +145,29 @@ public class LogEntryAdapter implements ListAdapter
 
 	public void log(LogEntry le)
 	{
+		
+		try
+		{
+			DBManager.getInstance(ServerProperties.getInstance().getString(PropertyNames.DATABASES_PATH.toString())).log(le);
+		}
+		catch(SQLException e)
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		catch(DatabaseManagerException e)
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		
 		logs.add(le);
 		
 		if(checkLevel(le) && checkT(le))
 		{
 			workingSet.add(le);
-			//informObservers();
+			informObservers();
 		}
 	}
 	
@@ -193,11 +213,8 @@ public class LogEntryAdapter implements ListAdapter
 	            LayoutInflater vi = (LayoutInflater)parent.getContext().getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 	            v = vi.inflate(R.layout.logentry, null);
 	        }
-	        
-	        if(position%2==0)
-	        	v.setBackgroundResource(android.R.drawable.divider_horizontal_bright);
-	        
-	        LogEntry le = logs.get(position);
+	        	        
+	        LogEntry le = workingSet.get(position);
 	        
 	        if (le != null)
 	        {
@@ -228,30 +245,30 @@ public class LogEntryAdapter implements ListAdapter
 	                	switch(le.getLevel())
 	                	{
 	                		default:	break;
-	                		case MicroWebServerListener.LOGLEVEL_DEBUG:	level.setImageResource(android.R.drawable.ic_dialog_info);
+	                		case MicroWebServerListener.LOGLEVEL_DEBUG:	level.setImageResource(R.drawable.bug_icon);
 	                													level.setColorFilter(0xFF0000FF,android.graphics.PorterDuff.Mode.MULTIPLY);
 	                													logtext.setTextColor(0xFF0000FF);
 	                													break;
 	                		
-	                		case MicroWebServerListener.LOGLEVEL_INFO:	level.setImageResource(android.R.drawable.ic_dialog_info);
+	                		case MicroWebServerListener.LOGLEVEL_INFO:	level.setImageResource(R.drawable.info_icon);
 												                		level.setColorFilter(0xFFFFFFFF,android.graphics.PorterDuff.Mode.MULTIPLY);
 												                		logtext.setTextColor(0xFFFFFFFF);
 																		break;
 	                		
-	                		case MicroWebServerListener.LOGLEVEL_NORMAL:	level.setImageResource(android.R.drawable.ic_dialog_info);
+	                		case MicroWebServerListener.LOGLEVEL_NORMAL:	level.setImageResource(R.drawable.checkmark_icon);
 												                		level.setColorFilter(0xFF00FF00,android.graphics.PorterDuff.Mode.MULTIPLY);
 												                		logtext.setTextColor(0xFF00FF00);
 																		break;
 	                		
-	                		case MicroWebServerListener.LOGLEVEL_WARN:	level.setImageResource(android.R.drawable.ic_dialog_alert);
+	                		case MicroWebServerListener.LOGLEVEL_WARN:	level.setImageResource(R.drawable.attention_icon);
 												                		level.setColorFilter(0xFFFF9900,android.graphics.PorterDuff.Mode.MULTIPLY);
 												                		logtext.setTextColor(0xFFFF9900);
 																		break;
 	                		
 	                		
-	                		case MicroWebServerListener.LOGLEVEL_ERROR:	level.setImageResource(android.R.drawable.ic_dialog_alert);
-												                		level.setColorFilter(0xFF000000,android.graphics.PorterDuff.Mode.MULTIPLY);
-												                		logtext.setTextColor(0xFF000000);
+	                		case MicroWebServerListener.LOGLEVEL_ERROR:	level.setImageResource(R.drawable.delete_icon);
+												                		level.setColorFilter(0xFFFF0000,android.graphics.PorterDuff.Mode.MULTIPLY);
+												                		logtext.setTextColor(0xFFFF0000);
 																		break;
 	                			
 	                	}
@@ -306,5 +323,13 @@ public class LogEntryAdapter implements ListAdapter
 		return false;
 	}
 
-	
+	public int getMinLevel()
+	{
+		return minlevel;
+	}
+
+	public int getMaxLevel()
+	{
+		return maxlevel;
+	}
 }

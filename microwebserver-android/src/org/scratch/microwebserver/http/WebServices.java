@@ -14,6 +14,7 @@ package org.scratch.microwebserver.http;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.scratch.microwebserver.data.DatabaseManagerException;
 import org.scratch.microwebserver.http.services.GetUsersService;
 import org.scratch.microwebserver.http.services.LogInService;
 import org.scratch.microwebserver.http.services.LogOutService;
@@ -34,13 +35,22 @@ public class WebServices
 		//init default services (FIXME: move to Server class !!!)
 		
 		Map<String,WebService> m = new HashMap<String,WebService>();
-		WebService w0 = new LogInService();
-		WebService w2 = new LogOutService();
-		WebService w3 = new GetUsersService();
-		
-		m.put(w0.getUri(),w0);
-		m.put(w2.getUri(),w2);
-		m.put(w3.getUri(),w3);
+		WebService w0;
+		try
+		{
+			w0=new LogInService();
+			WebService w2 = new LogOutService();
+			WebService w3 = new GetUsersService();
+			
+			m.put(w0.getUri(),w0);
+			m.put(w2.getUri(),w2);
+			m.put(w3.getUri(),w3);
+		}
+		catch(DatabaseManagerException e)
+		{
+			//TODO: log !
+			e.printStackTrace();
+		}
 		
 		services.put("server",m);
 	}

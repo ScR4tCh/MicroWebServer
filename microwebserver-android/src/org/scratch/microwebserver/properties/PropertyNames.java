@@ -11,6 +11,10 @@
  */
 package org.scratch.microwebserver.properties;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
 public enum PropertyNames
 {
 	LOGGERNAME(false,PropertyDatatype.STRING)
@@ -49,14 +53,14 @@ public enum PropertyNames
 		}
 	},
 
-	DATABASE_URL(false,PropertyDatatype.STRING)
+	DATABASES_PATH(false,PropertyDatatype.STRING)
 	{
 		public String toString()
 		{
-			return "microwebserver.database";
+			return "microwebserver.databases";
 		}
 	},
-	SERVER_PORT(true,PropertyDatatype.INT)
+	SERVER_PORT(true,PropertyDatatype.INT,new PropertyDependency[]{},new PropertyChecks[]{new PropertyChecks("input>1024 && input<65535","must be > 1024 < 65535")})
 	{
 		public String toString()
 		{
@@ -71,29 +75,42 @@ public enum PropertyNames
 		}
 	},
 
-	SERVER_SSLENABLE(false,PropertyDatatype.BOOLEAN)
+	SERVER_SSLENABLE(true,PropertyDatatype.BOOLEAN)
 	{
 		public String toString()
 		{
 			return "microwebserver.sslenable";
 		}
 	},
-	SERVER_PORTSSL(false,PropertyDatatype.INT)
+	SERVER_PORTSSL(true,PropertyDatatype.INT,new PropertyDependency[]{new PropertyDependency(SERVER_SSLENABLE,"input")},new PropertyChecks[]{new PropertyChecks("input>1024 && input<65535","must be > 1024 < 65535")})
 	{
 		public String toString()
 		{
 			return "microwebserver.portssl";
 		}
 	},
-	SERVER_SSLCERT(false,PropertyDatatype.FILE)
+	SERVER_KEYSTORE(true,PropertyDatatype.FILE,new PropertyDependency[]{new PropertyDependency(SERVER_SSLENABLE,"input")},new PropertyChecks[]{})
 	{
 		public String toString()
 		{
-			return "microwebserver.certificate";
+			return "microwebserver.keystore";
 		}
 	},
-
-	SERVER_WORKERS(true,PropertyDatatype.INT)
+	SSL_KEYSTOREPASS(true,PropertyDatatype.PASSWORD,new PropertyDependency[]{new PropertyDependency(SERVER_SSLENABLE,"input")},new PropertyChecks[]{})
+	{
+		public String toString()
+		{
+			return "microwebserver.keystore.password";
+		}
+	},
+	SERVER_PORTREDIRECT443(true,PropertyDatatype.BOOLEAN,new PropertyDependency[]{new PropertyDependency(SERVER_SSLENABLE,"input")},new PropertyChecks[]{})
+	{
+		public String toString()
+		{
+			return "microwebserver.port.redirect443";
+		}
+	},
+	SERVER_WORKERS(true,PropertyDatatype.INT,new PropertyDependency[]{},new PropertyChecks[]{new PropertyChecks("input>=2 && input<=20","must be >= 2 <= 20")})
 	{
 		public String toString()
 		{
@@ -107,7 +124,7 @@ public enum PropertyNames
 			return "microwebserver.webroot";
 		}
 	},
-	TOKEN_EXPIRATION(true,PropertyDatatype.INT)
+	TOKEN_EXPIRATION(false,PropertyDatatype.INT)
 	{
 		public String toString()
 		{
@@ -156,21 +173,52 @@ public enum PropertyNames
 	
 	private boolean conf;
 	private PropertyDatatype type;
+	private Set<PropertyDependency> dependencies = new HashSet<PropertyDependency>();
+	private Set<PropertyChecks> checks = new HashSet<PropertyChecks>();
 
-	 private PropertyNames(boolean configurable,PropertyDatatype type)
-	 {
+	private PropertyNames(boolean configurable,PropertyDatatype type)
+	{
 	   this.conf=configurable;
 	   this.type=type;
-	 }
-	 
-	 public PropertyDatatype getType()
-	 {
+	}
+	
+	private PropertyNames(boolean configurable,PropertyDatatype type,PropertyDependency[] dependencies,PropertyChecks[] checks)
+	{
+	   this.conf=configurable;
+	   this.type=type;
+	   
+	   this.dependencies=new HashSet<PropertyDependency>(Arrays.asList(dependencies));
+	   this.checks=new HashSet<PropertyChecks>(Arrays.asList(checks));
+	}
+	
+	public Set<PropertyDependency> getDependencies()
+	{
+		return dependencies;
+	}
+	
+	public boolean depends(PropertyNames p)
+	{
+		return dependencies.contains(p);
+	}
+	
+	private void addDependency(PropertyDependency pd)
+	{
+		dependencies.add(pd);
+	}
+	
+	public Set<PropertyChecks> getChecks()
+	{
+		return checks;
+	}
+	
+	public PropertyDatatype getType()
+	{
 		 return type;
-	 }
+	}
 
-	 public boolean isConfigurable()
-	 {
+	public boolean isConfigurable()
+	{
 	   return conf;
-	 }
-
+	}
+	
 }

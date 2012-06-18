@@ -11,6 +11,8 @@
  */
 package org.scratch.microwebserver.data;
 
+import java.io.File;
+import java.io.FilenameFilter;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.*;
@@ -18,9 +20,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
+import org.scratch.microwebserver.LogEntry;
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
 import org.scratch.microwebserver.users.Rights;
@@ -33,20 +37,33 @@ public class DBManager
 	private Statement stmt;
 	private ResultSet result;
 	
+	protected static final String JDBC_DRIVER="com.lemadi.storage.database.sqldroid.SqldroidDriver";
+	protected static final String CONNECT_URI="jdbc:sqldroid:";
 	
-	private static final String JDBC_DRIVER="com.lemadi.storage.database.sqldroid.SqldroidDriver";
-	private static final String CONNECT_URI="jdbc:sqldroid:";
+	private String databasepath;
 	
 	private static final Object instanceLock = new Object();
 	
-	private Set<String> tables = new HashSet<String>();
+	private ConcurrentMap<Integer,ConcurrentMap<String,Vector<DatabaseConnection>>> dbConnections = new ConcurrentHashMap<Integer,ConcurrentMap<String,Vector<DatabaseConnection>>>();
 	
-	protected DBManager(String database)
+	private Set<String> databases = new HashSet<String>();
+	
+	protected DBManager(String databasepath) throws DatabaseManagerException
 	{
+		File dbpf = new File(databasepath);
+	
+		if(!dbpf.exists())
+			dbpf.mkdirs();
+		
+		if(!dbpf.isDirectory())
+			throw new DatabaseManagerException(databasepath+" is not a directory");
+		
+		this.databasepath=databasepath;
+		
 		try
 		{
 			Class.forName(JDBC_DRIVER);
-			conn = DriverManager.getConnection(CONNECT_URI+database);
+			conn = DriverManager.getConnection(CONNECT_URI+databasepath+File.separator+"microwebserver.sqlite");
 		}catch(Exception e)
 		 {
 			e.printStackTrace();
@@ -59,86 +76,121 @@ public class DBManager
 
 			//NOTE: SQLITE ONLY (NOT REALLY SAFE)
 			stmt.execute("PRAGMA synchronous = 0");
+			stmt.execute("CREATE TABLE IF NOT EXISTS logs		(id INTEGER PRIMARY KEY AUTOINCREMENT,time INTEGER,level INTEGER,request TEXT,remoteaddress VARCHAR[256],message TEXT NOT NULL)");
 			
-			stmt.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT,username VARCHAR[64] NOT NULL,password CHAR[32] NOT NULL,rights INTEGER)");
-			stmt.execute("CREATE TABLE IF NOT EXISTS tablesecurity (tablename VARCHAR[256] NOT NULL,user INTEGER,dbrights INTEGER)");
-			stmt.execute("CREATE TABLE IF NOT EXISTS tokens (userid INTEGER PRIMARY KEY,expire LONG,token CHAR[32])");
+			stmt.execute("CREATE TABLE IF NOT EXISTS users 		(id INTEGER PRIMARY KEY AUTOINCREMENT,username VARCHAR[64] NOT NULL,password CHAR[32] NOT NULL)");
+			stmt.execute("CREATE TABLE IF NOT EXISTS dbsecurity (database VARCHAR[512] NOT NULL,user INTEGER,dbrights INTEGER)");
+			stmt.execute("CREATE TABLE IF NOT EXISTS tokens 	(userid INTEGER PRIMARY KEY,expire LONG,token CHAR[32])"); //general session creation ?!?
 			
-			//NOTE: SQLITE ONLY
-			result=stmt.executeQuery("SELECT name FROM sqlite_master WHERE type='table'");
-			while(result.next())
-			{
-				tables.add(result.getString("name"));
-			}
-			
-			
-			//TEST ONLY !
-			fillTestData();
+			//SET default root user and pw !
+			fillStdData();
 			
 		}catch (SQLException sqle)
 		 {
 			sqle.printStackTrace();
 		 }
 			
-		
-	}
-	
-	private void fillTestData() throws SQLException
-	{
-		int rights1=0;
-		rights1|=Rights.WEBACCESS;
-		stmt.execute("INSERT INTO users      (username,password,rights) 			  VALUES (\"root\",\""+encode("42")+"\","+rights1+")");
-	}
-	
-	@SuppressWarnings("unused")
-	private boolean checkTableUserRight(int user,String table,Statement st) throws SQLException
-	{
-		if(!tables.contains(table))
+		//TODO: list databases
+		String[] dbf = dbpf.list(new FilenameFilter()
 		{
-			return false;
-		}
-		else
-		{
-			return false;
-		}
-	}
-	
-	public Vector<TreeMap<String,Object>> doQuery(String q) throws SQLException
-	{
-		Vector<TreeMap<String, Object>> ret = new Vector<TreeMap<String,Object>>();
-		
-		ResultSet rs = stmt.executeQuery(q);
-		int cc = rs.getMetaData().getColumnCount();
-		
-		Vector<String> cn = new Vector<String>();
-		for(int i=0;i<cc;i++)
-		{
-			cn.add(rs.getMetaData().getColumnName(i));
-		}
-		
-		
-		long j=1;
-		
-		while(rs.next())
-		{
-			TreeMap<String,Object> tm = new TreeMap<String,Object>();
 			
-			for(int i=-1;i<cc;i++)
+			@Override
+			public boolean accept(File file,String s)
 			{
-				if(i==-1)
-					tm.put("*",j);
-				else
-					tm.put(cn.elementAt(i),rs.getObject(i));
+				if(s.toLowerCase().endsWith(".sqlite"))
+					return true;
+				
+				return false;
 			}
-			
-			ret.add(tm);
-			j++;
-		}
+		});
 		
-		return ret;
+		for(int i=0;i<dbf.length;i++)
+		{
+			databases.add(dbf[i].substring(0,dbf[i].indexOf(".sqlite")));
+		}
 	}
 	
-	private String encode(String what)
+	private void fillStdData() throws SQLException
+	{
+		stmt.execute("INSERT INTO users (username,password) VALUES (\"root\",\""+encodePW("42")+"\")");
+	}
+	
+	public DatabaseConnection openDatabaseConnection(String database,String user,String pwhash) throws NoSuchDatabaseException,DatabaseRightsException,DatabaseUserException, SQLException
+	{
+		if(!databases.contains(database))
+			throw new NoSuchDatabaseException(database);
+		
+		int userid;
+		
+		if((userid = checkUserCredentials(user,pwhash))==-1)
+			throw new DatabaseUserException();
+		
+		if(!checkDbRights(database,user))
+			throw new DatabaseRightsException();
+		
+		if(dbConnections.containsKey(userid))
+		{
+			if(dbConnections.get(userid).containsKey(database))
+			{
+				if(dbConnections.get(userid).get(database).size()>0)
+				{
+					//get most idle or so ...or just one per user ? (sqlite normally should open just one connection at time ...)
+					return dbConnections.get(userid).get(database).firstElement();
+				}
+				else
+				{
+					DatabaseConnection dbconn = new DatabaseConnection(databasepath,database);
+					dbConnections.get(userid).get(database).add(dbconn);
+					return dbconn;
+				}
+			}
+			else
+			{
+				DatabaseConnection dbconn = new DatabaseConnection(databasepath,database);
+				
+				Vector<DatabaseConnection> vcns = new Vector<DatabaseConnection>();
+				vcns.add(dbconn);
+				
+				dbConnections.get(userid).put(database,vcns);
+				
+				return dbconn;
+			}
+		}
+		
+		
+		DatabaseConnection dbconn = new DatabaseConnection(databasepath,database);
+		ConcurrentMap<String,Vector<DatabaseConnection>> cns = new ConcurrentHashMap<String,Vector<DatabaseConnection>>();
+		
+		Vector<DatabaseConnection> vcns = new Vector<DatabaseConnection>();
+		vcns.add(dbconn);
+		cns.put(database,vcns);
+		
+		dbConnections.put(userid,cns);
+		return dbconn;
+	}
+	
+	private boolean checkDbRights(String database,String user) throws SQLException
+	{
+		ResultSet rs = stmt.executeQuery("SELECT dbrights FROM dbsecurity WHERE user='"+user+"'");
+		
+		if(rs.next())
+			return true;
+		
+		return false;
+	}
+
+	private int checkUserCredentials(String user,String pwhash) throws SQLException
+	{
+		// TODO Auto-generated method stub
+		ResultSet rs=stmt.executeQuery("SELECT id FROM users WHERE username='"+user+"' AND password='"+pwhash+"'");
+		
+		if(rs.next())
+			return rs.getInt("id");
+		
+		return -1;
+	}
+	
+	public static String encodePW(String what)
 	{
 		MessageDigest digest;
 		try
@@ -168,7 +220,7 @@ public class DBManager
 		result=stmt.executeQuery("SELECT password,id FROM users WHERE username=\""+username+"\"");
 		if(result.next())
 		{
-			if(result.getString("password").equals(encode(password)))
+			if(result.getString("password").equals(encodePW(password)))
 			{
 				return result.getInt("id");
 			}		
@@ -209,7 +261,7 @@ public class DBManager
 			//update token expiration
 			int userid=result.getInt("userid");
 			result=stmt.executeQuery("SELECT username,password FROM users WHERE id="+userid);
-			String ntoken=encode(result.getString("username")+result.getString("password")+System.currentTimeMillis());
+			String ntoken=encodePW(result.getString("username")+result.getString("password")+System.currentTimeMillis());
 			long exp=System.currentTimeMillis()+ServerProperties.getInstance().getLong(PropertyNames.TOKEN_EXPIRATION.toString());
 			stmt.execute("UPDATE tokens SET token=\""+ntoken+"\",expire="+exp+" WHERE userid="+userid);
 				
@@ -240,11 +292,11 @@ public class DBManager
 		{
 			System.err.println(result.getInt("rights"));
 			
-			if(result.getString("password").equals(encode(password)) && Rights.hasRight(result.getInt("rights"),Rights.WEBACCESS))
+			if(result.getString("password").equals(encodePW(password)) && Rights.hasRight(result.getInt("rights"),Rights.WEBACCESS))
 			{
 				//TODO: update token expiration
 				int userid=result.getInt("id");
-				String token=encode(username+password+System.currentTimeMillis());
+				String token=encodePW(username+password+System.currentTimeMillis());
 				long exp=System.currentTimeMillis()+ServerProperties.getInstance().getLong(PropertyNames.TOKEN_EXPIRATION.toString());
 				
 				result=stmt.executeQuery("SELECT userid FROM tokens WHERE userid=\""+userid+"\"");
@@ -330,7 +382,7 @@ public class DBManager
 		conn.commit();
 	}*/
 	
-	public static DBManager getInstance(String database)
+	public static DBManager getInstance(String database) throws DatabaseManagerException
 	{
 		synchronized(instanceLock)
 		{
@@ -359,6 +411,36 @@ public class DBManager
 		if(result.next())
 		{
 			ret=result.getInt("rights");
+		}
+		
+		return ret;
+	}
+	
+	public void log(LogEntry e) throws SQLException
+	{
+		String insert = "INSERT INTO logs (time,level,request,remoteaddress,message) VALUES ("+e.getT()+","+e.getLevel()+",\""+e.getRequest()+"\",\""+e.getRemoteAddress()+"\",\""+e.getMessage()+"\")";
+		stmt.execute(insert);
+	}
+	
+	public Vector<LogEntry> getLogs(long now,long history,int minlevel,int maxlevel) throws SQLException
+	{
+		Vector<LogEntry> ret = new Vector<LogEntry>();
+		
+		String levelsort="";
+		
+		if(minlevel == -1 && maxlevel!=-1)
+			levelsort = "AND level < "+maxlevel;
+		else if(minlevel != -1 && maxlevel==-1)
+			levelsort = "AND level > "+minlevel;
+		else if(minlevel!=-1 && maxlevel!=-1)
+			levelsort = "AND level BETWEEN "+minlevel+" AND "+maxlevel;
+		
+		String q = "SELECT time,level,request,remoteaddress,message FROM logs WHERE time>="+(now-history)+levelsort+" ORDER BY time"; 
+		ResultSet rs = stmt.executeQuery(q);
+		
+		while(rs.next())
+		{
+			ret.add(new LogEntry(rs.getLong("time"),rs.getInt("level"),rs.getString("message"),rs.getString("request"),rs.getString("remoteaddress")));
 		}
 		
 		return ret;

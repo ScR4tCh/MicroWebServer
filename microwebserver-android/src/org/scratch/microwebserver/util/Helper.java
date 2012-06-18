@@ -71,6 +71,20 @@ public class Helper
 	     }
 	     return keys;
 	}
+	/**
+	 * THX TO http://stackoverflow.com/a/2904266
+	 */
+	public static <T, E> T getKeyByValue(Map<T, E> map, E value)
+	{
+	    for (Entry<T, E> entry : map.entrySet())
+	    {
+	        if (value.equals(entry.getValue()))
+	        {
+	            return entry.getKey();
+	        }
+	    }
+	    return null;
+	}
 
 	//Apache code  https://www.apache.org/licenses/LICENSE-2.0
 	//taken from http://stackoverflow.com/questions/813710/java-1-6-determine-symbolic-links

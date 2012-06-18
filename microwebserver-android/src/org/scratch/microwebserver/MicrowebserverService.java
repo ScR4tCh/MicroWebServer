@@ -11,18 +11,14 @@
  */
 package org.scratch.microwebserver;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.util.Enumeration;
 import java.util.Vector;
 
 import org.scratch.microwebserver.http.MicroWebServer;
 import org.scratch.microwebserver.http.MicroWebServerListener;
-import org.scratch.microwebserver.properties.PropertyNames;
-import org.scratch.microwebserver.properties.ServerProperties;
 import org.scratch.microwebserver.util.MimeDetector;
 
 import android.app.NotificationManager;
@@ -33,7 +29,6 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
-import android.util.Log;
 
 public class MicrowebserverService extends Service implements MicroWebServerListener
 {
@@ -46,26 +41,18 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 	private MicroWebServer server;
 	private final IBinder binder=new MicrowebserverServiceBinder();
 	
-	private String logfile = PropertyNames.LOGGERNAME+".log";
-	private PrintWriter logWriter;
 	
 	private Vector<ServiceListener> listeners = new Vector<ServiceListener>();
 	
 	private long startTime=0;
 	
+	private Vector<String> listeningAdresses = new Vector<String>();
+	private LogEntryAdapter lea;
+	
 	protected class MicrowebserverServiceBinder extends Binder
 	{
 		public boolean startServer()
-		{
-			try
-			{
-				logWriter = new PrintWriter(new OutputStreamWriter(new FileOutputStream(ServerProperties.getRoot()+File.separator+logfile,true)));
-			}
-			catch(FileNotFoundException e1)
-			{
-				e1.printStackTrace();
-			}
-			
+		{	
 			try
 			{
 				server=new MicroWebServer();
@@ -73,12 +60,48 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 				
 				server.setMimeDetector(new MimeDetector(getResources().openRawResource(R.raw.magic)));
 				
+				listeningAdresses.clear();
+				
+				try
+				{
+					for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements();)
+					{
+						NetworkInterface intf = en.nextElement();
+						for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements();)
+						{
+							InetAddress inetAddress = enumIpAddr.nextElement();
+							if (!inetAddress.isLoopbackAddress())
+							{
+				                    listeningAdresses.add(inetAddress.getHostAddress());
+				            }
+				        }
+					}
+				}
+				catch (SocketException ex)
+				{
+					if(server!=null)
+					{
+						log(server.fetchPreLogs());
+						server.shutdown();
+					}
+					
+					log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_ERROR,"","","Failed to start server:\n"+ex.getMessage());
+				}
+				
+				log(server.fetchPreLogs());
 				createNotification("serving ...");
 				return true;
 			}
-			catch(IOException e)
+			catch(Exception e)
 			{
-				Log.e(PropertyNames.LOGGERNAME.toString(),"Could not start server: "+e.getMessage());
+				if(server!=null)
+				{
+					log(server.fetchPreLogs());
+					server.shutdown();
+				}
+				
+				log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_ERROR,"","","Failed to start server:\n"+e.getMessage());
+				
 				return false;
 			}
 		}
@@ -92,8 +115,6 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 			}
 			
 			mNotificationManager.cancel(APPICON_ID);
-			
-			logWriter.close();
 		}
 		
 		//TODO: Test behavior !
@@ -102,6 +123,11 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 			stopServer();
 			startServer();
 		}
+		
+		public Vector<String> getListeningAdresses()
+		{
+			return listeningAdresses;
+		}
 
 		public boolean isServerUp()
 		{
@@ -109,11 +135,6 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 				return server.isOnline();
 			
 			return false;
-		}
-
-		public String getLogFile()
-		{
-			return ServerProperties.getRoot()+File.separator+logfile;
 		}
 		
 		public void registerServiceListener(ServiceListener sl)
@@ -129,6 +150,11 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 		public long getServerStartTime()
 		{
 			return MicrowebserverService.this.startTime;
+		}
+
+		public LogEntryAdapter getLogEntryAdapter()
+		{
+			return lea;
 		}
 	}
 	
@@ -152,6 +178,8 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 		
 		mNotificationManager=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
 		notificationBuilder = new NotificationCompat.Builder(this);
+		
+		lea=new LogEntryAdapter(startTime, 86400000); //24h history
 	}
 	
 	@Override
@@ -163,24 +191,19 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 	@Override
 	public void log(long t,int lev,String client,String request,String msg)
 	{
-		/**
-		 * LOG FORMAT:
-		 * 
-		 * time(ms)|level|msg|addr|req
-		 * 
-		 */
-		
-		logWriter.println(t+"|"+lev+"|"+msg.replaceAll("\\|","\\\\|").replaceAll("\n","\\\\n")+"|"+client+"|"+request);
-		if(logWriter.checkError())
-		{
-			LogEntry le = new LogEntry(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_ERROR,"there was an error while writing to the logfile","","SERVER");
-			for(int i=0;i<listeners.size();i++)
-				listeners.elementAt(i).log(le);
-		}
-		
 		LogEntry le = new LogEntry(t,lev,msg,request,client);
 		for(int i=0;i<listeners.size();i++)
 			listeners.elementAt(i).log(le);
+	}
+	
+	public void log(Vector<LogEntry> vl)
+	{
+		for(int l=0;l<vl.size();l++)
+		{
+			LogEntry le = vl.elementAt(l);
+			for(int i=0;i<listeners.size();i++)
+				listeners.elementAt(i).log(le);
+		}
 	}
 
 	@Override
