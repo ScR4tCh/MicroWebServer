@@ -18,8 +18,10 @@ import java.security.NoSuchAlgorithmException;
 import java.sql.*;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -27,17 +29,20 @@ import java.util.concurrent.ConcurrentMap;
 import org.scratch.microwebserver.LogEntry;
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
+import org.scratch.microwebserver.users.DBRights;
 import org.scratch.microwebserver.users.Rights;
 
 
 public class DBManager
 {
+	private static final String SYSDBNAME="microwebserver";
+	
 	private static DBManager instance;
 	private Connection conn;
 	private Statement stmt;
 	private ResultSet result;
 	
-	protected static final String JDBC_DRIVER="com.lemadi.storage.database.sqldroid.SqldroidDriver";
+	protected static final String JDBC_DRIVER="org.sqldroid.SQLDroidDriver";
 	protected static final String CONNECT_URI="jdbc:sqldroid:";
 	
 	private String databasepath;
@@ -63,7 +68,7 @@ public class DBManager
 		try
 		{
 			Class.forName(JDBC_DRIVER);
-			conn = DriverManager.getConnection(CONNECT_URI+databasepath+File.separator+"microwebserver.sqlite");
+			conn = DriverManager.getConnection(CONNECT_URI+databasepath+File.separator+SYSDBNAME+".sqlite");
 		}catch(Exception e)
 		 {
 			e.printStackTrace();
@@ -76,9 +81,11 @@ public class DBManager
 
 			//NOTE: SQLITE ONLY (NOT REALLY SAFE)
 			stmt.execute("PRAGMA synchronous = 0");
+			
+			//stmt.execute("CREATE TABLE IF NOT EXISTS mutex(i INTEGER NOT NULL PRIMARY KEY)");
 			stmt.execute("CREATE TABLE IF NOT EXISTS logs		(id INTEGER PRIMARY KEY AUTOINCREMENT,time INTEGER,level INTEGER,request TEXT,remoteaddress VARCHAR[256],message TEXT NOT NULL)");
 			
-			stmt.execute("CREATE TABLE IF NOT EXISTS users 		(id INTEGER PRIMARY KEY AUTOINCREMENT,username VARCHAR[64] NOT NULL,password CHAR[32] NOT NULL)");
+			stmt.execute("CREATE TABLE IF NOT EXISTS users 		(id INTEGER PRIMARY KEY AUTOINCREMENT,username VARCHAR[64] UNIQUE NOT NULL,password CHAR[32] NOT NULL)");
 			stmt.execute("CREATE TABLE IF NOT EXISTS dbsecurity (database VARCHAR[512] NOT NULL,user INTEGER,dbrights INTEGER)");
 			stmt.execute("CREATE TABLE IF NOT EXISTS tokens 	(userid INTEGER PRIMARY KEY,expire LONG,token CHAR[32])"); //general session creation ?!?
 			
@@ -110,73 +117,265 @@ public class DBManager
 		}
 	}
 	
-	private void fillStdData() throws SQLException
+	private void fillStdData()
 	{
-		stmt.execute("INSERT INTO users (username,password) VALUES (\"root\",\""+encodePW("42")+"\")");
+		
+		try
+		{
+			stmt.execute("INSERT INTO users (username,password) VALUES (\"root\",\""+encodePW("42")+"\")");
+		}
+		catch(SQLException e)
+		{
+			// TODO Auto-generated catch block
+			//e.printStackTrace();
+		}
+		
+		try
+		{
+			stmt.execute("INSERT INTO dbsecurity (database,user,dbrights) SELECT '"+SYSDBNAME+"',1,"+DBRights.ADMIN+" WHERE NOT EXISTS (SELECT database,user FROM dbsecurity WHERE database='"+SYSDBNAME+"' AND user=1)");
+		}
+		catch(SQLException e)
+		{
+			// TODO Auto-generated catch block
+			//e.printStackTrace();
+		}
 	}
 	
 	public DatabaseConnection openDatabaseConnection(String database,String user,String pwhash) throws NoSuchDatabaseException,DatabaseRightsException,DatabaseUserException, SQLException
 	{
-		if(!databases.contains(database))
+		if(database!=null && database.equals(SYSDBNAME))
+			throw new DatabaseRightsException("can not overwrite system database !"); //TODO: set message "cannot overwrite system DB"
+		
+		if(database!=null && !databases.contains(database))
 			throw new NoSuchDatabaseException(database);
 		
 		int userid;
 		
 		if((userid = checkUserCredentials(user,pwhash))==-1)
-			throw new DatabaseUserException();
+			throw new DatabaseUserException("invalid login data");
 		
 		if(!checkDbRights(database,user))
-			throw new DatabaseRightsException();
+			throw new DatabaseRightsException(user+ " has no permission to access "+database!=null?database:SYSDBNAME);
 		
 		if(dbConnections.containsKey(userid))
 		{
-			if(dbConnections.get(userid).containsKey(database))
+			if(database==null) //system DB
 			{
-				if(dbConnections.get(userid).get(database).size()>0)
+				if(dbConnections.get(userid).containsKey(SYSDBNAME))
 				{
-					//get most idle or so ...or just one per user ? (sqlite normally should open just one connection at time ...)
-					return dbConnections.get(userid).get(database).firstElement();
+					if(dbConnections.get(userid).containsKey(SYSDBNAME))
+					{
+						return dbConnections.get(userid).get(SYSDBNAME).firstElement();
+					}
+					else
+					{
+						DatabaseConnection dbconn = new SysDBConnection(user,pwhash,stmt);
+						dbConnections.get(userid).get(SYSDBNAME).add(dbconn);
+						return dbconn;
+					}
 				}
 				else
 				{
-					DatabaseConnection dbconn = new DatabaseConnection(databasepath,database);
-					dbConnections.get(userid).get(database).add(dbconn);
+					DatabaseConnection dbconn = new SysDBConnection(user,pwhash,stmt);
+					
+					Vector<DatabaseConnection> vcns = new Vector<DatabaseConnection>();
+					vcns.add(dbconn);
+					
+					dbConnections.get(userid).put(SYSDBNAME,vcns);
+					
 					return dbconn;
 				}
 			}
 			else
 			{
-				DatabaseConnection dbconn = new DatabaseConnection(databasepath,database);
-				
-				Vector<DatabaseConnection> vcns = new Vector<DatabaseConnection>();
-				vcns.add(dbconn);
-				
-				dbConnections.get(userid).put(database,vcns);
-				
-				return dbconn;
+				if(dbConnections.get(userid).containsKey(database))
+				{
+					if(dbConnections.get(userid).get(database).size()>0)
+					{
+						//get most idle or so ...or just one per user ? (sqlite normally should open just one connection at time ...)
+						for(int i=0;i<dbConnections.get(userid).get(database).size();i++)
+						{
+							if(dbConnections.get(userid).get(database).elementAt(i).isClosed())
+								dbConnections.get(userid).get(database).remove(i);
+						}
+						
+						if(dbConnections.get(userid).get(database).size()==0)
+						{
+							DatabaseConnection dbconn = new SysDBConnection(user,pwhash,stmt);
+							dbConnections.get(userid).get(database).add(dbconn);
+							return dbconn;
+						}
+						else
+						{
+							return dbConnections.get(userid).get(database).firstElement();
+						}
+					}
+					else
+					{
+						DatabaseConnection dbconn = new SysDBConnection(user,pwhash,stmt);
+						dbConnections.get(userid).get(database).add(dbconn);
+						return dbconn;
+					}
+				}
+				else
+				{
+					DatabaseConnection dbconn = new DatabaseConnection(this,user,databasepath,database);
+					
+					Vector<DatabaseConnection> vcns = new Vector<DatabaseConnection>();
+					vcns.add(dbconn);
+					
+					dbConnections.get(userid).put(database,vcns);
+					
+					return dbconn;
+				}
 			}
 		}
-		
-		
-		DatabaseConnection dbconn = new DatabaseConnection(databasepath,database);
-		ConcurrentMap<String,Vector<DatabaseConnection>> cns = new ConcurrentHashMap<String,Vector<DatabaseConnection>>();
-		
-		Vector<DatabaseConnection> vcns = new Vector<DatabaseConnection>();
-		vcns.add(dbconn);
-		cns.put(database,vcns);
-		
-		dbConnections.put(userid,cns);
-		return dbconn;
+		else
+		{
+			DatabaseConnection dbconn;
+			
+			if(database==null)
+				dbconn = new SysDBConnection(user,pwhash,stmt);
+			else
+				dbconn = new DatabaseConnection(this,user,databasepath,database);
+			
+			ConcurrentMap<String,Vector<DatabaseConnection>> cns = new ConcurrentHashMap<String,Vector<DatabaseConnection>>();
+			
+			Vector<DatabaseConnection> vcns = new Vector<DatabaseConnection>();
+			vcns.add(dbconn);
+			
+			if(database==null)
+				cns.put(SYSDBNAME,vcns);
+			else
+				cns.put(database,vcns);
+			
+			dbConnections.put(userid,cns);
+			return dbconn;
+		}
 	}
 	
-	private boolean checkDbRights(String database,String user) throws SQLException
+	public final Set<String> getDatabases()
 	{
-		ResultSet rs = stmt.executeQuery("SELECT dbrights FROM dbsecurity WHERE user='"+user+"'");
+		return databases;
+	}
 		
-		if(rs.next())
+	protected void createDatabase(String database,String user,String pwhash) throws DatabaseRightsException,DatabaseUserException,DatabaseAlreadyExistsException,SQLException
+	{
+		int userid;
+		
+		if((userid = checkUserCredentials(user,pwhash))==-1)
+			throw new DatabaseUserException("ivalid login data");
+		
+		if(!checkDbRights(database,user,DBRights.ADMIN))
+			throw new DatabaseRightsException(user+" has no rights to create databases !");
+		
+		if(databases.contains(database))
+		{
+			throw new DatabaseAlreadyExistsException("A database named "+database+" already ");
+		}
+		else
+		{
+			DatabaseConnection dbconn = new DatabaseConnection(this,user,databasepath,database);
+			
+			Vector<DatabaseConnection> vcns = new Vector<DatabaseConnection>();
+			vcns.add(dbconn);
+			
+			dbConnections.get(userid).put(database,vcns);			
+		}
+	}
+	
+	protected void dropDatabase(String database,String user,String pwhash) throws DatabaseRightsException,DatabaseUserException,DatabaseAlreadyExistsException,SQLException
+	{
+		
+		if((checkUserCredentials(user,pwhash))==-1)
+			throw new DatabaseUserException("ivalid login data");
+		
+		if(!checkDbRights(database,user,DBRights.ADMIN) && !database.equals(SYSDBNAME))
+			throw new DatabaseRightsException(user+" has no rights to drop databases !");
+		
+		if(!databases.contains(database))
+		{
+			throw new DatabaseAlreadyExistsException("A database named "+database+" does not exist ");
+		}
+		else
+		{
+			databases.remove(database);
+			
+			Iterator<Integer> uit = dbConnections.keySet().iterator();
+			
+			while(uit.hasNext())
+			{
+				Integer ui = uit.next();
+				
+				if(dbConnections.get(ui).containsKey(database))
+				{
+					Vector<DatabaseConnection> v = dbConnections.get(ui).get(database);
+					for(int i=0;i<v.size();i++)
+					{
+						v.elementAt(i).close();
+						v.remove(i);
+					}
+				}
+			}
+			
+			//TODO: delete physically !
+		}
+	}
+	
+	public void grantRights(String database,String user,String pwhash,String affectedUser)
+	{
+		
+	}
+
+	protected boolean checkDbRights(String database,String user) throws SQLException, DatabaseUserException
+	{
+		if(DBRights.hasRight(getRights(resolvUserId(user)),DBRights.ADMIN))
 			return true;
 		
-		return false;
+		if(database==null)
+		{
+			return DBRights.hasRight(getRights(resolvUserId(user)),DBRights.ADMIN);
+		}
+		else
+		{
+			ResultSet rs = stmt.executeQuery("SELECT dbrights FROM dbsecurity WHERE user='"+user+"'");
+		
+			if(rs.next())
+				return true;
+		
+			return false;
+		}
+	}
+	
+	protected boolean checkDbRights(String database,String user,int rights) throws SQLException, DatabaseUserException
+	{
+		if(DBRights.hasRight(getRights(resolvUserId(user)),DBRights.ADMIN))
+			return true;
+		
+		if(database==null)
+		{
+			return DBRights.hasRight(getRights(resolvUserId(user)),rights);
+		}
+		else
+		{
+			ResultSet rs = stmt.executeQuery("SELECT dbrights FROM dbsecurity WHERE user='"+user+"'");
+		
+			if(rs.next() && DBRights.hasRight(rs.getInt("dbrights"),rights))
+				return true;
+			
+			return false;
+		}
+	}
+	
+	private int resolvUserId(String user) throws SQLException
+	{
+		// TODO Auto-generated method stub
+		ResultSet rs=stmt.executeQuery("SELECT id FROM users WHERE username='"+user+"'");
+				
+		if(rs.next())
+		return rs.getInt("id");
+				
+		return -1;
 	}
 
 	private int checkUserCredentials(String user,String pwhash) throws SQLException
@@ -213,6 +412,8 @@ public class DBManager
 		  }	
 	}
 
+	//////////////////// THIS IS FOR BASIC AUTH !!! /////////////////////////////////////////////////
+	
 	//returns user id !
 	public int login(String username,String password) throws SQLException
 	{	
@@ -287,12 +488,12 @@ public class DBManager
 	//returns a token if username and password are correct, returns null if not
 	public String generateToken(String username,String password) throws SQLException
 	{
-		result=stmt.executeQuery("SELECT password,rights,id FROM users WHERE username=\""+username+"\"");
+		result=stmt.executeQuery("SELECT password,dbrights,id FROM users WHERE username=\""+username+"\"");
 		if(result.next())
 		{
-			System.err.println(result.getInt("rights"));
+			System.err.println(result.getInt("dbrights"));
 			
-			if(result.getString("password").equals(encodePW(password)) && Rights.hasRight(result.getInt("rights"),Rights.WEBACCESS))
+			if(result.getString("password").equals(encodePW(password)) && Rights.hasRight(result.getInt("dbrights"),Rights.WEBACCESS))
 			{
 				//TODO: update token expiration
 				int userid=result.getInt("id");
@@ -311,6 +512,8 @@ public class DBManager
 		
 		return null;
 	}
+	
+	/////////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	
 	public Map<Integer,String> getUsers() throws SQLException
@@ -342,20 +545,6 @@ public class DBManager
 		{
 			ret[0]=set.getString("username");
 			ret[1]=set.getString("password");	
-		}
-		
-		return ret;
-	}
-	
-	public int getRights(String token) throws SQLException
-	{
-		int ret = 0;
-		
-		String query="SELECT rights FROM users WHERE id=(SELECT userid FROM tokens WHERE token=\""+token+"\")";
-		result=stmt.executeQuery(query);
-		if(result.next())
-		{
-			ret=result.getInt("rights");
 		}
 		
 		return ret;
@@ -402,15 +591,18 @@ public class DBManager
 		}
 	}
 
-	public int getRights(int userId) throws SQLException
+	public int getRights(int userId) throws SQLException, DatabaseUserException
 	{
+		if(userId==-1)
+			throw new DatabaseUserException("invalid user");
+		
 		int ret = 0;
 		
-		String query="SELECT rights FROM users WHERE id="+userId;
+		String query="SELECT dbrights FROM dbsecurity WHERE user="+userId;
 		result=stmt.executeQuery(query);
 		if(result.next())
 		{
-			ret=result.getInt("rights");
+			ret=result.getInt("dbrights");
 		}
 		
 		return ret;
@@ -446,5 +638,86 @@ public class DBManager
 		return ret;
 	}
 
+	private class SysDBConnection extends DatabaseConnection
+	{
+		public SysDBConnection(String user,String pwhash,Statement stmt)
+		{
+			super(user,pwhash,stmt);
+		}
+		
+		public Vector<TreeMap<String,Object>> doQuery(String q) throws SQLException,DatabaseManagerException
+		{
+			//FIXME: as in the super method, a real SQL Parser would be better, for security and stability reasons !
+			if(q.toLowerCase().startsWith("create database") || q.toLowerCase().startsWith("drop database") || q.toLowerCase().equals("list databases"))
+			{
+				Vector<TreeMap<String, Object>> ret = new Vector<TreeMap<String,Object>>();
+				
+				//list databases
+				if(q.toLowerCase().equals("list databases"))
+				{
+					
+					Vector<String> cn = new Vector<String>();
+					cn.add("database");
+					
+					long j=0;
+					
+					Iterator<String> rs=databases.iterator();
+					
+					while(rs.hasNext())
+					{
+						TreeMap<String,Object> tm = new TreeMap<String,Object>();
+						
+						tm.put("*",j);
+						tm.put("database",rs.next());
+						
+						ret.add(tm);
+						j++;
+					}
+					
+					return ret;
+				}
+				else if(q.toLowerCase().startsWith("create database"))
+				{
+					//we will stay lowercase !!!
+					String[] tokens = q.split("\\s+");
+					if(tokens.length==3)
+					{
+						createDatabase(tokens[2],this.user,this.pwHash);
+						return ret;
+					}
+					
+					throw new SQLException("Your statement conatins errors. to create a database use \"CREATE DATABASE <dbname>\"");
+				}
+				else if(q.toLowerCase().startsWith("drop database"))
+				{
+					//we will stay lowercase !!!
+					String[] tokens = q.split("\\s+");
+					if(tokens.length==3)
+					{
+						dropDatabase(tokens[2],this.user,this.pwHash);
+						return ret;
+					}
+					
+					throw new SQLException("Your statement conatins errors. to drop a database use \"DROP DATABASE <dbname>\"");
+				}
+				else
+				{
+					//should not happen
+					throw new SQLException("Your statement conatins errors.");
+				}
+				//only avialable for admin connection !
+			}
+			else
+			{
+				return super.doQuery(q);
+			}
+		}
+		
+		//FIXME: a real SQL Parser would be much better here, so find a lightweight one !!!
+		protected boolean simpleSQLSyntaxCheck(String query,String user) throws SQLException, DatabaseUserException
+		{
+			return checkDbRights(null,user,DBRights.ADMIN);
+		}
+	}
 }
 

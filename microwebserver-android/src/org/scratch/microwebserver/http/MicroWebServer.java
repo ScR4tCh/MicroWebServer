@@ -15,6 +15,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
@@ -55,6 +56,8 @@ public class MicroWebServer implements Runnable
 	
 	private String sslmsgs="";
 	
+	private volatile boolean recreate=false;
+	
 	//listen !
 	private Vector<MicroWebServerListener> wbls = new Vector<MicroWebServerListener>();
 	private Vector<LogEntry> preLogs = new Vector<LogEntry>();
@@ -70,9 +73,24 @@ public class MicroWebServer implements Runnable
 		}catch(Exception e){/*TODO: LOG !*/}
 		
 		ssock=new ServerSocket(ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORT.toString()));
+		ssock.setReuseAddress(true);
 		
-		if(ServerProperties.getInstance().getBoolean(PropertyNames.SERVER_PORTREDIRECT80.toString()))
-			RootCommands.execute("iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port "+ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORT.toString()),null,null);
+		if(ServerProperties.getInstance().getBoolean(PropertyNames.SERVER_PORTREDIRECT80.toString())) //FIXME: broken on older android devs !
+		{
+			StringBuffer out = new StringBuffer();
+			StringBuffer err = new StringBuffer();
+			
+			RootCommands.execute("iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port "+ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORT.toString()),out,err);
+			
+			if(err.length()>0)
+			{
+				log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_WARN,null,"Forwarding to port 80 failed:\n"+err.toString());
+			}
+			else
+			{
+				log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_DEBUG,null,"Forwarding to port 80 succeded");
+			}
+		}
 		
 		executor = new MicroWebServerExecutor();
 		
@@ -84,10 +102,24 @@ public class MicroWebServer implements Runnable
 			try
 			{
 				sslssock=setupSSLServerSocket(ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORTSSL.toString()),new FileInputStream(ServerProperties.getInstance().getString(PropertyNames.SERVER_KEYSTORE.toString())), ServerProperties.getInstance().getString(PropertyNames.SSL_KEYSTOREPASS.toString()));
+				sslssock.setReuseAddress(true);
 				if(sslssock!=null)
 				{
-					if(ServerProperties.getInstance().getBoolean(PropertyNames.SERVER_PORTREDIRECT443.toString()))
-						RootCommands.execute("iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port "+ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORTSSL.toString()),null,null);
+					if(ServerProperties.getInstance().getBoolean(PropertyNames.SERVER_PORTREDIRECT443.toString())) //FIXME: broken on older android devs !
+					{
+						StringBuffer out = new StringBuffer();
+						StringBuffer err = new StringBuffer();
+						RootCommands.execute("iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port "+ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORTSSL.toString()),out,err);
+						
+						if(err.length()>0)
+						{
+							log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_WARN,null,"Forwarding to port 443 failed:\n"+err.toString());
+						}
+						else
+						{
+							log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_DEBUG,null,"Forwarding to port 443 succeded");
+						}
+					}
 					
 					
 					webworkerSSL = new Thread(this);
@@ -117,6 +149,39 @@ public class MicroWebServer implements Runnable
 		return ret;
 	}
 	
+	public synchronized void recreateSockets(Vector<String> addr) throws IOException
+	{
+		recreate=true;
+		
+		informRecreate(recreate,addr);
+		
+		if(ssock!=null)
+		{
+			ssock.close();
+			ssock=new ServerSocket();
+			
+			
+			ssock.setReuseAddress(true);
+			ssock.bind(new InetSocketAddress(ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORT.toString())));
+			
+			log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_INFO,null,"Server socket recreated");
+		}
+		
+		if(sslssock!=null)
+		{
+			sslssock.close();
+			sslssock=setupSSLServerSocket(new FileInputStream(ServerProperties.getInstance().getString(PropertyNames.SERVER_KEYSTORE.toString())), ServerProperties.getInstance().getString(PropertyNames.SSL_KEYSTOREPASS.toString()));
+			
+			sslssock.setReuseAddress(true);
+			sslssock.bind(new InetSocketAddress(ServerProperties.getInstance().getInt(PropertyNames.SERVER_PORTSSL.toString())));
+			
+			log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_INFO,null,"SSL Server socket recreated");
+		}
+		
+		recreate=false;
+		
+		informRecreate(recreate,addr);
+	}
 	
 	public void run()
 	{
@@ -135,8 +200,9 @@ public class MicroWebServer implements Runnable
 					
 				} catch (IOException e)
 				  {
-					// TODO: LOG !
-					e.printStackTrace();
+					if(!recreate)
+						// TODO: LOG !
+						e.printStackTrace();
 				  }
 			}
 		}
@@ -155,8 +221,9 @@ public class MicroWebServer implements Runnable
 					
 				} catch (IOException e)
 				  {
-					// TODO: LOG !
-					e.printStackTrace();
+					if(!recreate)
+						// TODO: LOG !
+						e.printStackTrace();
 				  }
 			}
 		}
@@ -264,7 +331,7 @@ public class MicroWebServer implements Runnable
 			preLogs .add(new LogEntry(t,level,msg,"",""));
 		
 		for(int i=0;i<wbls.size();i++)
-			wbls.elementAt(i).log(t,level,wc.getRequestingAddr(),wc.getRequest(),msg);
+			wbls.elementAt(i).log(t,level,(wc!=null)?wc.getRequestingAddr():"",(wc!=null)?wc.getRequest():"",msg);
 	}
 	
 	private void startUp(boolean b)
@@ -278,6 +345,14 @@ public class MicroWebServer implements Runnable
 		for(int i=0;i<wbls.size();i++)
 		{
 			wbls.elementAt(i).shutDown(b);
+		}
+	}
+	
+	private void informRecreate(boolean b,Vector<String> addr)
+	{
+		for(int i=0;i<wbls.size();i++)
+		{
+			wbls.elementAt(i).recreate(b,addr);
 		}
 	}
 	
@@ -302,6 +377,11 @@ public class MicroWebServer implements Runnable
 		this.mimeDetect=mimeDetect;
 	}
 	
+	private SSLServerSocket setupSSLServerSocket(final InputStream is,String pw)
+	{
+		 return setupSSLServerSocket(-1,is,pw);
+	}
+	
 	private SSLServerSocket setupSSLServerSocket(int port,final InputStream is,String pw)
 	{
 		
@@ -319,8 +399,12 @@ public class MicroWebServer implements Runnable
 			sslContext.init(km.getKeyManagers(), null, null);
 			
 			SSLServerSocketFactory f = sslContext.getServerSocketFactory();
+			SSLServerSocket ss;
 			
-			SSLServerSocket ss = (SSLServerSocket) f.createServerSocket(port);
+			if(port!=-1)
+				ss = (SSLServerSocket) f.createServerSocket(port);
+			else
+				ss = (SSLServerSocket) f.createServerSocket();
 			
 			return ss;
 			

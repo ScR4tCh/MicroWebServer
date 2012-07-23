@@ -2,7 +2,6 @@ package org.scratch.microwebserver;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.media.MediaPlayer.OnBufferingUpdateListener;
 import android.os.Bundle;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -34,21 +33,21 @@ public class LogSettingsActivity extends Activity implements OnItemSelectedListe
         
         Intent i = getIntent();
         
-        minLevel=i.getIntExtra(MINLEVEL,0);
-        maxLevel=i.getIntExtra(MAXLEVEL,0);
+        minLevel=i.getIntExtra(MINLEVEL,-1);
+        maxLevel=i.getIntExtra(MAXLEVEL,-1);
         
         minLevelSpin=(Spinner)findViewById(R.id.minlevel_spin);
         ArrayAdapter<CharSequence> adapterMin = ArrayAdapter.createFromResource(this, R.array.loglevels, android.R.layout.simple_spinner_item);
         adapterMin.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         minLevelSpin.setAdapter(adapterMin);
-        minLevelSpin.setSelection(minLevel);
+        minLevelSpin.setSelection(minLevel+1);
         minLevelSpin.setOnItemSelectedListener(this);
         
         maxLevelSpin=(Spinner)findViewById(R.id.maxlevel_spin);
         ArrayAdapter<CharSequence> adapterMax = ArrayAdapter.createFromResource(this, R.array.loglevels, android.R.layout.simple_spinner_item);
         adapterMax.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         maxLevelSpin.setAdapter(adapterMax);
-        maxLevelSpin.setSelection(maxLevel);
+        maxLevelSpin.setSelection(maxLevel+1);
         maxLevelSpin.setOnItemSelectedListener(this);
         
         applyBt=(Button)findViewById(R.id.button1);
@@ -60,10 +59,10 @@ public class LogSettingsActivity extends Activity implements OnItemSelectedListe
 	public void onItemSelected(AdapterView<?> parent,View view,int pos,long id)
 	{
 		if(parent.equals(minLevelSpin))
-			minLevel=pos;
+			minLevel=pos-1;
 		
 		if(parent.equals(maxLevelSpin))
-			maxLevel=pos;
+			maxLevel=pos-1;
 	
 	}
 
@@ -77,8 +76,8 @@ public class LogSettingsActivity extends Activity implements OnItemSelectedListe
 	private void result()
 	{
 		Intent it = new Intent();
-		it.putExtra(MINLEVEL,minLevel-1);
-		it.putExtra(MAXLEVEL,maxLevel-1);
+		it.putExtra(MINLEVEL,minLevel);
+		it.putExtra(MAXLEVEL,maxLevel);
 		
 		setResult(SET,it);
 		

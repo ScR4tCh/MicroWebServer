@@ -75,6 +75,14 @@ public class ServerProperties
 		properties.put(PropertyNames.CACHE_PATH.toString(),"cached");
 		
 		properties.put(PropertyNames.INDEX_NAME.toString(),"index");
+		
+		//dyndns
+		properties.put(PropertyNames.SERVER_DYNDNS.toString(),false);
+		properties.put(PropertyNames.DYNDNS_HOSTER.toString(),"");
+		properties.put(PropertyNames.DYNDNS_ALIAS.toString(),"");
+		properties.put(PropertyNames.DYNDNS_PASSWORD.toString(),"");
+		properties.put(PropertyNames.DYNDNS_USERNAME.toString(),"");
+		
 
 		try
 		{

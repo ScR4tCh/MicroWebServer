@@ -169,7 +169,48 @@ public enum PropertyNames
 		{
 			return "magicmime.file";
 		}
-	};
+	},
+	SERVER_DYNDNS(true,PropertyDatatype.BOOLEAN,new PropertyDependency[]{},new PropertyChecks[]{})
+	{
+		public String toString()
+		{
+			return "microwebserver.dyndns";
+		}
+	},
+	
+	DYNDNS_HOSTER(true,PropertyDatatype.SELECTION,new PropertyDependency[]{new PropertyDependency(SERVER_DYNDNS,"input")},new PropertyChecks[]{})
+	{
+		public String toString()
+		{
+			return "microwebserver.dyndns.hoster";
+		}
+	},
+	
+	DYNDNS_ALIAS(true,PropertyDatatype.STRING,new PropertyDependency[]{new PropertyDependency(SERVER_DYNDNS,"input")},new PropertyChecks[]{})
+	{
+		public String toString()
+		{
+			return "microwebserver.dyndns.alias";
+		}
+	},
+	
+	DYNDNS_USERNAME(true,PropertyDatatype.STRING,new PropertyDependency[]{new PropertyDependency(SERVER_DYNDNS,"input")},new PropertyChecks[]{})
+	{
+		public String toString()
+		{
+			return "microwebserver.dyndns.username";
+		}
+	},
+	
+	DYNDNS_PASSWORD(true,PropertyDatatype.PASSWORD,new PropertyDependency[]{new PropertyDependency(SERVER_DYNDNS,"input")},new PropertyChecks[]{})
+	{
+		public String toString()
+		{
+			return "microwebserver.dyndns.password";
+		}
+	}
+	
+	;
 	
 	private boolean conf;
 	private PropertyDatatype type;
@@ -199,11 +240,6 @@ public enum PropertyNames
 	public boolean depends(PropertyNames p)
 	{
 		return dependencies.contains(p);
-	}
-	
-	private void addDependency(PropertyDependency pd)
-	{
-		dependencies.add(pd);
 	}
 	
 	public Set<PropertyChecks> getChecks()

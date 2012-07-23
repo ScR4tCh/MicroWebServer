@@ -9,7 +9,7 @@
 
  * You should have received a copy of the GNU Lesser General Public License along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
-package org.scratch.microwebserver.http.zeminterface;
+package org.scratch.microwebserver.http.z3minterface;
 
 
 import java.sql.SQLException;
@@ -22,6 +22,7 @@ import org.scratch.microwebserver.http.WebConnection;
 
 import net.zeminvaders.lang.Interpreter;
 import net.zeminvaders.lang.SourcePosition;
+import net.zeminvaders.lang.runtime.ZemNULL;
 import net.zeminvaders.lang.runtime.ZemObject;
 
 public class CreateDBConnectionFunction extends MicroWebServerFunction
@@ -45,14 +46,20 @@ public class CreateDBConnectionFunction extends MicroWebServerFunction
 	@Override
 	public ZemObject eval(Interpreter interpreter,SourcePosition pos)
 	{
-		String db = interpreter.getVariable("database", pos).toZString().toString();
+		String db=null;
+		
+		ZemObject zo=interpreter.getVariable("database", pos);
+		
+		if( zo!=null && !(zo instanceof ZemNULL) )
+			db = zo.toZString().toString();
+		
+		//FIXME: should test for NULL !
 		String user = interpreter.getVariable("username", pos).toZString().toString();
 		String pw = interpreter.getVariable("password", pos).toZString().toString();
 		
 		try
 		{
-			return new ZemDBConnObject(dbm.openDatabaseConnection(db,user,DBManager.encodePW(pw)));
-			
+			return new Z3mDBConnObject(dbm.openDatabaseConnection(db,user,DBManager.encodePW(pw)));
 		}
 		catch(NoSuchDatabaseException e)
 		{

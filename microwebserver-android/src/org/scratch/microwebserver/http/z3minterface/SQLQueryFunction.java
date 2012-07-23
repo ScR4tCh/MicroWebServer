@@ -9,7 +9,7 @@
 
  * You should have received a copy of the GNU Lesser General Public License along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
-package org.scratch.microwebserver.http.zeminterface;
+package org.scratch.microwebserver.http.z3minterface;
 
 import java.io.IOException;
 
@@ -19,6 +19,9 @@ import java.util.Iterator;
 import java.util.TreeMap;
 import java.util.Vector;
 
+import org.scratch.microwebserver.data.DatabaseManagerException;
+import org.scratch.microwebserver.data.DatabaseRightsException;
+import org.scratch.microwebserver.data.DatabaseUserException;
 import org.scratch.microwebserver.util.Base64;
 
 import net.zeminvaders.lang.Interpreter;
@@ -52,7 +55,7 @@ public class SQLQueryFunction extends MicroWebServerFunction
 				
 		ZemObject zdbc = interpreter.getVariable("dbconnection", pos);
 		
-		if(!(zdbc instanceof ZemDBConnObject))
+		if(!(zdbc instanceof Z3mDBConnObject))
 			throw new ZemException("dbconnection must be a valid DatabaseConnection !");
 		
 		if(query!=null)
@@ -61,7 +64,7 @@ public class SQLQueryFunction extends MicroWebServerFunction
 			
 			try
 			{
-				Vector<TreeMap<String,Object>> res = ((ZemDBConnObject)zdbc).getDatabaseConnection().doQuery(query);
+				Vector<TreeMap<String,Object>> res = ((Z3mDBConnObject)zdbc).getDatabaseConnection().doQuery(query);
 				
 				for(int i=0;i<res.size();i++)
 				{
@@ -101,6 +104,18 @@ public class SQLQueryFunction extends MicroWebServerFunction
 			catch(IOException e)
 			{
 				throw new ZHTMLException(500,"Reading Blob failed : "+e.getMessage());
+			}
+			catch(DatabaseRightsException e)
+			{
+				throw new ZHTMLException(500,"Query failed because of insufficient rights: "+e.getMessage());
+			}
+			catch(DatabaseUserException e)
+			{
+				throw new ZHTMLException(500,"No such user: "+e.getMessage());
+			}
+			catch(DatabaseManagerException e)
+			{
+				throw new ZHTMLException(500,"DB Error: "+e.getMessage());
 			}
 		}
 		

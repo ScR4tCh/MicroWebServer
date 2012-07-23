@@ -11,23 +11,33 @@
  */
 package org.scratch.microwebserver;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.sql.SQLException;
 import java.util.Enumeration;
 import java.util.Vector;
 
+import org.scratch.microwebserver.data.DBManager;
+import org.scratch.microwebserver.data.DatabaseManagerException;
 import org.scratch.microwebserver.http.MicroWebServer;
 import org.scratch.microwebserver.http.MicroWebServerListener;
+import org.scratch.microwebserver.properties.PropertyNames;
+import org.scratch.microwebserver.properties.ServerProperties;
 import org.scratch.microwebserver.util.MimeDetector;
 
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.PowerManager;
+import android.os.PowerManager.WakeLock;
 import android.support.v4.app.NotificationCompat;
 
 public class MicrowebserverService extends Service implements MicroWebServerListener
@@ -41,6 +51,7 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 	private MicroWebServer server;
 	private final IBinder binder=new MicrowebserverServiceBinder();
 	
+	private ConnectionChangeReceiver networkChangedReceiver;
 	
 	private Vector<ServiceListener> listeners = new Vector<ServiceListener>();
 	
@@ -49,10 +60,71 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 	private Vector<String> listeningAdresses = new Vector<String>();
 	private LogEntryAdapter lea;
 	
+	private WakeLock wakeLock;
+	
+	public class ConnectionChangeReceiver extends BroadcastReceiver
+	{
+		  @Override
+		  public void onReceive( Context context, Intent intent )
+		  {
+		    
+		    if(server!=null && server.isOnline())
+		    {
+		    	System.err.println("CONNECTION HAS CHANGED !");
+		    	System.err.println("SERVER UP, REBIND PORTS !");
+		    	
+		    	listeningAdresses = new Vector<String>();
+		    	Enumeration<NetworkInterface> en;
+		    	
+				try
+				{
+					en=NetworkInterface.getNetworkInterfaces();
+								
+			    	while( en.hasMoreElements())
+			    	{
+			    		NetworkInterface intf = en.nextElement();
+			    	    for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements();)
+			    	    {
+			    	    	InetAddress inetAddress = enumIpAddr.nextElement();
+			    	    	if (!inetAddress.isLoopbackAddress())
+			    	    		listeningAdresses.add(inetAddress.getHostAddress());
+			    	    }
+			    	}
+			    	
+			    	if(listeningAdresses.size()>0) //should always be true !
+			    	{
+				    	try
+						{
+							server.recreateSockets(listeningAdresses);
+						}
+						catch(IOException e)
+						{
+							//TODO: log !
+							e.printStackTrace();
+						}
+			    	}
+			    	else
+			    	{
+			    		System.err.println("NO ADDRESSES, REBIND FAILED !!!!");
+			    		//TODO: log !
+			    	}
+				}
+				catch(SocketException e1)
+				{
+					e1.printStackTrace();
+					//TODO: log !
+			    }
+			}
+			
+		    
+		  }
+	}
+	
 	protected class MicrowebserverServiceBinder extends Binder
 	{
-		public boolean startServer()
+		public void startServer()
 		{	
+			startUp(false);
 			try
 			{
 				server=new MicroWebServer();
@@ -89,8 +161,12 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 				}
 				
 				log(server.fetchPreLogs());
+				startUp(true);
 				createNotification("serving ...");
-				return true;
+				
+				//wake lock  --- configurable ?
+				wakeLock = ((PowerManager)getSystemService(Context.POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"microwebserver wakelock");
+				wakeLock.acquire();
 			}
 			catch(Exception e)
 			{
@@ -101,8 +177,7 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 				}
 				
 				log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_ERROR,"","","Failed to start server:\n"+e.getMessage());
-				
-				return false;
+				shutDown(true);
 			}
 		}
 		
@@ -111,7 +186,26 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 			if(server!=null)
 			{
 				server.shutdown();
+				
+				try
+				{
+					DBManager.getInstance(ServerProperties.getInstance().getString(PropertyNames.DATABASES_PATH.toString())).close();
+				}
+				catch(SQLException e)
+				{
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				catch(DatabaseManagerException e)
+				{
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				
 				server.removeMicroWebServerListener(MicrowebserverService.this);
+				
+				if(wakeLock.isHeld())
+					wakeLock.release();
 			}
 			
 			mNotificationManager.cancel(APPICON_ID);
@@ -174,12 +268,25 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 	{
 		super.onCreate();
 		
+		networkChangedReceiver = new ConnectionChangeReceiver();
+		IntentFilter filter = new IntentFilter();
+		filter.addAction(android.net.ConnectivityManager.CONNECTIVITY_ACTION);
+
+		registerReceiver(networkChangedReceiver, filter);
+
+		
 		startTime=System.currentTimeMillis();
 		
 		mNotificationManager=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
 		notificationBuilder = new NotificationCompat.Builder(this);
 		
 		lea=new LogEntryAdapter(startTime, 86400000); //24h history
+	}
+	
+	public void onDestroy()
+	{
+		unregisterReceiver(networkChangedReceiver);
+		super.onDestroy();
 	}
 	
 	@Override
@@ -218,6 +325,13 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 	{
 		for(int i=0;i<listeners.size();i++)
 			listeners.elementAt(i).shutDown(shutDown);
+	}
+
+	@Override
+	public void recreate(boolean b,Vector<String> addr)
+	{
+		for(int i=0;i<listeners.size();i++)
+			listeners.elementAt(i).recreate(b,addr);
 	}
 
 }

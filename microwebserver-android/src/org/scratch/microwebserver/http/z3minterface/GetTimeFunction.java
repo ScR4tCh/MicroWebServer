@@ -9,26 +9,36 @@
 
  * You should have received a copy of the GNU Lesser General Public License along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
-package org.scratch.microwebserver.http.zeminterface;
+package org.scratch.microwebserver.http.z3minterface;
 
-import net.zeminvaders.lang.ZemException;
+import net.zeminvaders.lang.Interpreter;
+import net.zeminvaders.lang.SourcePosition;
+import net.zeminvaders.lang.runtime.ZemNumber;
+import net.zeminvaders.lang.runtime.ZemObject;
 
-public class ZHTMLException extends ZemException
-{
-
-	private static final long serialVersionUID=8116607640025895140L;
+public class GetTimeFunction extends MicroWebServerFunction
+{	
 	
-	private int replycode=500;
-		
-	public ZHTMLException(int replycode,String message)
+	public GetTimeFunction()
 	{
-		super(message);
-		this.replycode=replycode;
 	}
-	
-	public int getReplyCode()
+
+	@Override
+	public ZemObject eval(Interpreter interpreter,SourcePosition pos) throws ZHTMLException
 	{
-		return replycode;
+		return new ZemNumber(System.currentTimeMillis());
+	}
+
+	@Override
+	public int getParameterCount()
+	{
+		return 0;
+	}
+
+	@Override
+	public String getParameterName(int index)
+	{
+		return null;
 	}
 
 }

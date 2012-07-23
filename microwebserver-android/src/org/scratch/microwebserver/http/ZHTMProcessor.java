@@ -15,8 +15,8 @@ import java.io.StringWriter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.scratch.microwebserver.http.zeminterface.ZHTMLException;
-import org.scratch.microwebserver.http.zeminterface.ZHTMLZemInterpreter;
+import org.scratch.microwebserver.http.z3minterface.ZHTMLException;
+import org.scratch.microwebserver.http.z3minterface.ZHTMLZemInterpreter;
 
 
 import net.zeminvaders.lang.Interpreter;
@@ -32,12 +32,8 @@ import net.zeminvaders.lang.runtime.ZemObject;
 public class ZHTMProcessor
 {
 	
-	public static String process(ZHTMLZemInterpreter interpreter,WebConnection wb,String s,ZemObject result) throws ZHTMLException
-	{
-//		System.err.println("-----------------------------------------------------------");
-//		System.err.println(s);
-//		System.err.println("-----------------------------------------------------------");
-		
+	public static String process(ZHTMLZemInterpreter interpreter,WebConnection wb,String s,ZemObject result,StringBuffer fallbackBuffer) throws ZHTMLException
+	{		
 		Pattern ps = Pattern.compile("(<\\?z3m){1}");
 		Matcher ms = ps.matcher(s);
 		
@@ -49,7 +45,10 @@ public class ZHTMProcessor
 			html.append(s.substring(i,ms.start()));
 			i=s.indexOf("?>",ms.start())+2;
 			String script=s.substring(ms.start()+7,i-2);
-			html.append(processScript(script,interpreter,result));
+			String res =processScript(script,interpreter,result);
+			if(fallbackBuffer!=null)
+				fallbackBuffer.append(res);
+			html.append(res);
 		}
 			
 		if(i==0)
@@ -60,11 +59,14 @@ public class ZHTMProcessor
 		return html.toString();
 	}
 	
-	public static String process(WebConnection wb,String s,ZemObject result) throws ZHTMLException
+	public static String process(WebConnection wb,String s,ZemObject result,StringBuffer fallbackBuffer) throws ZHTMLException
 	{
 		ZHTMLZemInterpreter interpreter = new ZHTMLZemInterpreter(wb);
-		wb.setHeaderField("Content-Type",interpreter.getResultMimeType());
-		return process(interpreter,wb,s,result);
+		
+		if(interpreter.getResultMimeType()!=null)
+			wb.setHeaderField("Content-Type",interpreter.getResultMimeType());
+		
+		return process(interpreter,wb,s,result,fallbackBuffer);
 	}
 
 	private static String processScript(final String script,final Interpreter interpreter,ZemObject result) throws ZHTMLException

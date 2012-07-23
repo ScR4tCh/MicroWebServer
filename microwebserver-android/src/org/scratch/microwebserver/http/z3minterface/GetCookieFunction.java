@@ -9,52 +9,54 @@
 
  * You should have received a copy of the GNU Lesser General Public License along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
-package org.scratch.microwebserver.http.zeminterface;
+package org.scratch.microwebserver.http.z3minterface;
 
-import java.io.BufferedReader;
+import java.util.Map;
 
-import org.scratch.microwebserver.data.DBManager;
 import org.scratch.microwebserver.http.WebConnection;
 
 import net.zeminvaders.lang.Interpreter;
 import net.zeminvaders.lang.SourcePosition;
-import net.zeminvaders.lang.runtime.Function;
 import net.zeminvaders.lang.runtime.ZemObject;
+import net.zeminvaders.lang.runtime.ZemString;
 
-public abstract class MicroWebServerFunction extends Function
+public class GetCookieFunction extends MicroWebServerFunction
 {
-	protected WebConnection wb;
-	protected BufferedReader postdata;
-	protected String[] getrequest;
-	protected String mimetype;
-	protected DBManager database;
+	private Map<String,String> cookie;
 	
-	public MicroWebServerFunction()
+	public GetCookieFunction(WebConnection wb)
 	{
-		super();
-	}
-	
-	@Override
-	public abstract ZemObject eval(Interpreter interpreter,SourcePosition pos) throws ZHTMLException;
-
-	@Override
-	public ZemObject getDefaultValue(int index)
-	{
-		return null;
+		cookie=wb.getCookie();
 	}
 
 	@Override
-	public abstract int getParameterCount();
+	public int compareTo(ZemObject o)
+	{
+		// TODO Auto-generated method stub
+		return 0;
+	}
 
 	@Override
-	public abstract String getParameterName(int index);
-	
-	public void setWebConnection(WebConnection wb)
+	public ZemObject eval(Interpreter interpreter,SourcePosition pos)
 	{
-		this.postdata=wb.getPostData();
-		this.mimetype=wb.getRequestMimeType();
-		this.getrequest=wb.getGetRequest();
-		this.database=wb.getDatabase();
+		String key = interpreter.getVariable("key", pos).toZString().toString();
+		String value = cookie.get(key);
+		if(value!=null)
+			return new ZemString(cookie.get(key));
+		else
+			return Interpreter.NULL;
+	}
+
+	@Override
+	public int getParameterCount()
+	{
+		return 1;
+	}
+
+	@Override
+	public String getParameterName(int index)
+	{
+		return "key";
 	}
 
 }

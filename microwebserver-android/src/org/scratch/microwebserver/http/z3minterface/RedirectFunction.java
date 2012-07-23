@@ -9,9 +9,7 @@
 
  * You should have received a copy of the GNU Lesser General Public License along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
-package org.scratch.microwebserver.http.zeminterface;
-
-import java.sql.SQLException;
+package org.scratch.microwebserver.http.z3minterface;
 
 import org.scratch.microwebserver.http.WebConnection;
 
@@ -19,49 +17,37 @@ import net.zeminvaders.lang.Interpreter;
 import net.zeminvaders.lang.SourcePosition;
 import net.zeminvaders.lang.runtime.ZemObject;
 
-public class LogoutFunction extends MicroWebServerFunction
+public class RedirectFunction extends MicroWebServerFunction
 {
 	private WebConnection wb;
-
-	public LogoutFunction(WebConnection wb)
+	
+	public RedirectFunction(WebConnection wb)
 	{
 		this.wb=wb;
 	}
 
+	
 	@Override
-	public ZemObject eval(Interpreter interpreter,SourcePosition pos)throws ZHTMLException
+	public ZemObject eval(Interpreter interpreter,SourcePosition pos) throws ZHTMLException
 	{
-		if(wb.getCookieCrumb("TOKEN")!=null)
-		{
-			try
-			{
-				wb.getDatabase().invalidateToken(wb.getCookieCrumb("TOKEN").toString());
-			}
-			catch(SQLException e)
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
+		String location = interpreter.getVariable("location", pos).toZString().toString();
+        
+		wb.setHeaderField("Location",location);
+		wb.setStatusCode(307); //307 Temporary Redirect
 		
-		//redirect
-		wb.setHeaderField("Location","/");
-		wb.setHeaderField("Cache-Control","no-cache");
-		wb.setStatusCode(307);
-		
-		return null;
+		return Interpreter.NULL;
 	}
 
 	@Override
 	public int getParameterCount()
 	{
-		return 0;
+		return 1;
 	}
 
 	@Override
 	public String getParameterName(int index)
 	{
-		return null;
+		return "location";
 	}
-
+	
 }

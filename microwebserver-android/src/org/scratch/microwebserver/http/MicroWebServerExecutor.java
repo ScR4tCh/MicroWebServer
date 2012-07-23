@@ -8,7 +8,6 @@ import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLException;
 
-import org.scratch.microwebserver.data.DatabaseManagerException;
 
 //THX FOR THE CODE : http://konstantin.filtschew.de/blog/2009/06/14/mit-threadpoolexecutor-arbeit-unter-java-effizient-parallelisieren/
 
@@ -83,7 +82,7 @@ public class MicroWebServerExecutor
 			 {
 				try
 				{
-					conn.log(MicroWebServerListener.LOGLEVEL_NORMAL,"connection timeout: "+conn.sock.getInetAddress());
+					conn.log(MicroWebServerListener.LOGLEVEL_INFO,"connection timeout: "+conn.sock.getInetAddress());
 					conn.setKeepAlive(false);
 					conn.close(false);
 				}

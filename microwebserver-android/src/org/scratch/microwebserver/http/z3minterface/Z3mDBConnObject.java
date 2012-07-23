@@ -1,14 +1,14 @@
-package org.scratch.microwebserver.http.zeminterface;
+package org.scratch.microwebserver.http.z3minterface;
 
 import org.scratch.microwebserver.data.DatabaseConnection;
 
 import net.zeminvaders.lang.runtime.ZemObject;
 
-public class ZemDBConnObject extends ZemObject
+public class Z3mDBConnObject extends ZemObject
 {
 	private DatabaseConnection dbc;
 	
-	public ZemDBConnObject(DatabaseConnection dbc)
+	public Z3mDBConnObject(DatabaseConnection dbc)
 	{
 		this.dbc=dbc;
 	}
@@ -22,9 +22,9 @@ public class ZemDBConnObject extends ZemObject
 	@Override
 	public int compareTo(ZemObject another)
 	{
-		if(another instanceof ZemDBConnObject)
+		if(another instanceof Z3mDBConnObject)
 		{
-			DatabaseConnection adbc= ((ZemDBConnObject)another).dbc;
+			DatabaseConnection adbc= ((Z3mDBConnObject)another).dbc;
 			
 			if(adbc.equals(dbc))
 				return 1;

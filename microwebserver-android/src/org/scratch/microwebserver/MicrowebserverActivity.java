@@ -12,6 +12,7 @@
 package org.scratch.microwebserver;
 
 import java.util.Arrays;
+import java.util.Vector;
 
 import org.scratch.microwebserver.MicrowebserverService.MicrowebserverServiceBinder;
 import org.scratch.microwebserver.properties.PropertyNames;
@@ -19,7 +20,6 @@ import org.scratch.microwebserver.properties.PropertyNames;
 import com.viewpagerindicator.TitlePageIndicator;
 import com.viewpagerindicator.TitlePageIndicator.IndicatorStyle;
 
-import android.app.ProgressDialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -58,9 +58,7 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
     private ListView logList;
     
     private LogEntryAdapter lea;
-    
-    private ProgressDialog pd;
-    
+        
 	@Override
     public void onCreate(Bundle savedInstanceState)
     {
@@ -88,13 +86,9 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 				if(name.getClassName().equals("org.scratch.microwebserver.MicrowebserverService"))
 				{
 					binder=((MicrowebserverServiceBinder)service);
-					
-					runOnUiThread(new Runnable(){public void run(){pd = ProgressDialog.show(MicrowebserverActivity.this, "Parsing Logs..", "stand by", true, false);}});
-					
+										
 					//global adapter ;)
-					lea = binder.getLogEntryAdapter();
-					runOnUiThread(new Runnable(){public void run(){pd.dismiss();}});
-					
+					lea = binder.getLogEntryAdapter();					
 					
 					binder.registerServiceListener(MicrowebserverActivity.this);
 					
@@ -246,26 +240,11 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 		{	
 			if(!binder.isServerUp())
 			{
-				if(binder.startServer())
-				{
-					statusImage.post(
-										new Runnable()
-										{
-											public void run()
-											{
-												statusText.setText("Started");
-												socketInfo.setText(Arrays.toString(binder.getListeningAdresses().toArray()));
-												statusImage.setImageResource(R.drawable.indicator_started);
-											}
-										}
-									);
-				}
+				binder.startServer();
 			}
 			else
 			{
 				binder.stopServer();
-				statusText.setText("Stopped");
-				statusImage.setImageResource(R.drawable.indicator_stopped);
 			}
 		}
 	}
@@ -333,9 +312,33 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 	public void startUp(boolean started)
 	{
 		if(!started)
-			pd = ProgressDialog.show(this, "Starting Server..", "stand by", true, false);
-		else if(started && pd!=null)
-			pd.dismiss();
+		{
+			runOnUiThread(new Runnable()
+						  {
+								public void run()
+								{
+									statusText.setText("Starting server ...");
+									socketInfo.setText("");
+									statusImage.setClickable(false);
+									statusImage.setImageResource(R.drawable.indicator_idle);
+								}
+						  }
+						);
+		}
+		else if(started)
+		{
+			runOnUiThread(new Runnable()
+						  {
+								public void run()
+								{
+									statusText.setText("Started");
+									socketInfo.setText(Arrays.toString(binder.getListeningAdresses().toArray()));
+									statusImage.setClickable(true);
+									statusImage.setImageResource(R.drawable.indicator_started);
+								}
+						  }
+						);
+		}
 	}
 
 	@Override
@@ -346,18 +349,66 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 		if(!shutDown)
 		{
 			runOnUiThread(new Runnable()
-							  {
-									public void run()
-									{
-										socketInfo.setText("");
-										pd = ProgressDialog.show(MicrowebserverActivity.this, "Stopping Server..", "stand by", true, false);
-									}
-							 }
+						  {
+								public void run()
+								{
+									statusText.setText("Stopping server ...");
+									socketInfo.setText("");
+									statusImage.setClickable(false);
+									statusImage.setImageResource(R.drawable.indicator_idle);
+								}
+						  }
 						);
 		}
-		else if(shutDown && pd!=null)
+		else if(shutDown)
 		{
-			pd.dismiss();
+			runOnUiThread(new Runnable()
+						  {
+								public void run()
+								{
+									statusText.setText("Stopped");
+									socketInfo.setText("");
+									statusImage.setClickable(true);
+									statusImage.setImageResource(R.drawable.indicator_stopped);
+								}
+						 }
+		);
+		}
+	}
+	
+	@Override
+	public void recreate(boolean b,final Vector<String> addr)
+	{
+		
+		if(b)
+		{
+			runOnUiThread(
+					new Runnable()
+					{
+						public void run()
+						{
+							statusText.setText("Rebinding ...");
+							socketInfo.setText("");
+							statusImage.setClickable(false);
+							statusImage.setImageResource(R.drawable.indicator_idle);
+						}
+					}
+				);
+		}
+		else
+		{
+			runOnUiThread(
+					new Runnable()
+					{
+						public void run()
+						{
+							statusText.setText("Started");
+							socketInfo.setText(Arrays.toString(addr.toArray()));
+							statusImage.setImageResource(R.drawable.indicator_started);
+							statusImage.setClickable(true);
+						}
+					}
+				);
 		}
 	}
 	
@@ -465,13 +516,19 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 		}
 		
 		if(requestCode==LogSettingsActivity.SET && resultCode==LogSettingsActivity.SET)
-		{			
+		{	
+
 			int minlevel = data.getIntExtra(LogSettingsActivity.MINLEVEL,-1);
 			int maxlevel = data.getIntExtra(LogSettingsActivity.MAXLEVEL,-1);
+			
+			System.err.println("loglevel filter "+minlevel+" -> "+maxlevel);
+			
 			
 			lea.filter(minlevel,maxlevel);
 		}
 	}
+
+	
 
 
 }

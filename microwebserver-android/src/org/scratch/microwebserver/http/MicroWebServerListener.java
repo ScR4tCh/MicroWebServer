@@ -11,6 +11,8 @@
  */
 package org.scratch.microwebserver.http;
 
+import java.util.Vector;
+
 public interface MicroWebServerListener
 {
 	public static final int LOGLEVEL_DEBUG=0;
@@ -22,4 +24,5 @@ public interface MicroWebServerListener
 	public void log(long t,int lev,String client,String request,String msg);
 	public void startUp(boolean started);
 	public void shutDown(boolean shutDown);
+	public void recreate(boolean b,Vector<String> addr);
 }

@@ -9,76 +9,52 @@
 
  * You should have received a copy of the GNU Lesser General Public License along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
-package org.scratch.microwebserver.http.zeminterface;
+package org.scratch.microwebserver.http.z3minterface;
 
-import java.sql.SQLException;
+import java.io.BufferedReader;
 
 import org.scratch.microwebserver.data.DBManager;
 import org.scratch.microwebserver.http.WebConnection;
 
 import net.zeminvaders.lang.Interpreter;
 import net.zeminvaders.lang.SourcePosition;
-import net.zeminvaders.lang.runtime.ZemBoolean;
+import net.zeminvaders.lang.runtime.Function;
 import net.zeminvaders.lang.runtime.ZemObject;
 
-public class Gatekeeper extends MicroWebServerFunction
+public abstract class MicroWebServerFunction extends Function
 {
-	private WebConnection wb;
+	protected WebConnection wb;
+	protected BufferedReader postdata;
+	protected String[] getrequest;
+	protected String mimetype;
+	protected DBManager database;
 	
-	
-	public Gatekeeper(WebConnection wb)
+	public MicroWebServerFunction()
 	{
-		this.wb=wb;
-	}
-
-	private boolean checkToken(String token,DBManager database)
-	{
-		//System.err.println("GATEKEEPER -> TOKEN:"+token);
-		
-		if(token==null)
-			return false;
-			
-		try
-		{
-			if(database.checkTokenValid(token))
-			{
-				if(!database.checkTokenExpired(token))
-				{
-					return true;
-				}
-			}
-		}catch(SQLException se)
-		 {
-			return false;
-		 }
-		
-		return false;
-		
+		super();
 	}
 	
 	@Override
-	public int compareTo(ZemObject o)
-	{
-		// TODO Auto-generated method stub
-		return 0;
-	}
+	public abstract ZemObject eval(Interpreter interpreter,SourcePosition pos) throws ZHTMLException;
 
 	@Override
-	public ZemObject eval(Interpreter interpreter,SourcePosition pos)
-	{
-		return new ZemBoolean(checkToken(wb.getCookie().get("TOKEN"),wb.getDatabase()));
-	}
-
-	@Override
-	public int getParameterCount()
-	{
-		return 0;
-	}
-
-	@Override
-	public String getParameterName(int index)
+	public ZemObject getDefaultValue(int index)
 	{
 		return null;
+	}
+
+	@Override
+	public abstract int getParameterCount();
+
+	@Override
+	public abstract String getParameterName(int index);
+	
+	public void setWebConnection(WebConnection wb)
+	{
+		this.postdata=wb.getPostData();
+		this.mimetype=wb.getRequestMimeType();
+		this.getrequest=wb.getGetRequest();
+		this.database=wb.getDatabase();
 	}
 
 }

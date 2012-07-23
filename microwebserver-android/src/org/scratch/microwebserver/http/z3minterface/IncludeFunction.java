@@ -9,7 +9,7 @@
 
  * You should have received a copy of the GNU Lesser General Public License along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
-package org.scratch.microwebserver.http.zeminterface;
+package org.scratch.microwebserver.http.z3minterface;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -52,7 +52,7 @@ public class IncludeFunction extends MicroWebServerFunction
 					sb+=b;		
 				bin.close();
 				
-				return new ZemIncludeString(ZHTMProcessor.process((ZHTMLZemInterpreter)interpreter,wb,sb,null));
+				return new ZemIncludeString(ZHTMProcessor.process((ZHTMLZemInterpreter)interpreter,wb,sb,null,null));
 			}catch(IOException ioe){ throw new ZHTMLException(500,ioe.getMessage());}
 		}
 		

@@ -49,10 +49,11 @@ import net.zeminvaders.lang.runtime.ZemObject;
 import org.scratch.microwebserver.data.Cache;
 import org.scratch.microwebserver.data.DBManager;
 import org.scratch.microwebserver.data.DatabaseManagerException;
-import org.scratch.microwebserver.http.zeminterface.ZHTMLException;
+import org.scratch.microwebserver.http.z3minterface.ZHTMLException;
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
 import org.scratch.microwebserver.util.Helper;
+import org.scratch.microwebserver.util.HtmlEntities;
 import org.scratch.microwebserver.util.MimeDetector;
 import org.scratch.microwebserver.util.MimeType;
 
@@ -349,11 +350,13 @@ public class WebConnection
 				
 				//sendBuffer.append(""+EOL);
 				
+				StringBuffer fallback = new StringBuffer();
+				
 				try
 				{
 					long t0 = System.currentTimeMillis();
 					ZemObject res=null;
-					sendBuffer.append(ZHTMProcessor.process(this,sb,res));
+					sendBuffer.append(ZHTMProcessor.process(this,sb,res,fallback));
 					long t = System.currentTimeMillis()-t0;
 					
 					log(MicroWebServerListener.LOGLEVEL_INFO,"ZemScript executing "+f+" took "+t+"ms"+((res==null)?"":" result="+res.toString()));
@@ -361,7 +364,7 @@ public class WebConnection
 				}catch(ZHTMLException e)
 				 {
 					log(MicroWebServerListener.LOGLEVEL_WARN,e.getReplyCode()+" "+getCodeDescription(e.getReplyCode())+" "+e.getMessage());
-					reply(e.getReplyCode(),"text/html","utf-8","<html><head><title>ERROR</title></head><body><h1>"+e.getReplyCode()+" "+getCodeDescription(e.getReplyCode())+"</h1>"+e.getMessage().replace("\n","<br/>")+"</body></html>");
+					reply(e.getReplyCode(),"text/html","utf-8","<html><head><title>ERROR</title></head><body><h1>"+e.getReplyCode()+" "+getCodeDescription(e.getReplyCode())+"</h1>"+e.getMessage().replace("\n","<br/>")+"<p>"+HtmlEntities.encode(fallback.toString())+"</p></body></html>");
 					return;
 				 }
 				

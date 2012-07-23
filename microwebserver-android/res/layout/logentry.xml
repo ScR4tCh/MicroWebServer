@@ -1,67 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
->
+    android:layout_height="match_parent" >
 
-	<LinearLayout
-	    xmlns:android="http://schemas.android.com/apk/res/android"
-	    android:id="@+id/linlay1"
-	    android:layout_width="match_parent"
-	    android:layout_height="match_parent"
-	    android:layout_below="@+id/linlay3"
-	    android:orientation="horizontal" >
-	
-	    <ImageView
-	        android:id="@+id/levelIco"
-	        android:layout_width="wrap_content"
-	        android:layout_height="match_parent"
-	        android:layout_marginRight="10dp"
-	        android:scaleType="fitStart"
-	        android:src="@android:drawable/ic_dialog_alert" />
-	
-	    <LinearLayout
-	        android:id="@+id/linlay2"
-	        android:layout_width="match_parent"
-	        android:layout_height="match_parent"
-	        android:orientation="vertical" >
-	
-	        <TextView
-	            android:id="@+id/logDate"
-	            android:layout_width="wrap_content"
-	            android:layout_height="wrap_content"
-	            android:text="Small Text"
-	            android:textAppearance="?android:attr/textAppearanceSmall" />
-	
-	        <TextView
-	            android:id="@+id/logClient"
-	            android:layout_width="wrap_content"
-	            android:layout_height="wrap_content"
-	            android:text="Small Text"
-	            android:textAppearance="?android:attr/textAppearanceSmall" />
-	
-	        <TextView
-	            android:id="@+id/logtext"
-	            android:layout_width="wrap_content"
-	            android:layout_height="match_parent"
-	            android:gravity="center_vertical"
-	            android:text="Text"
-	            android:textAppearance="?android:attr/textAppearanceMedium" />
-	
-	    </LinearLayout>
-	
-	</LinearLayout>
+    <LinearLayout
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/linlay1"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal" >
 
-	<LinearLayout
-	    android:id="@+id/linlay3"
-	    android:layout_width="match_parent"
-	    android:layout_height="wrap_content"
-	    android:layout_below="@id/levelIco"
-	    android:layout_marginBottom="2dp"
-	     android:layout_marginTop="2dp"
-	    android:background="@drawable/dividerrepeat"
-	    android:orientation="vertical" >
+        <ImageView
+            android:id="@+id/levelIco"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_marginRight="10dp"
+            android:scaleType="fitStart"
+            android:src="@android:drawable/ic_dialog_alert" />
 
-	</LinearLayout>
+        <LinearLayout
+            android:id="@+id/linlay2"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical" >
+
+            <TextView
+                android:id="@+id/logDate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Small Text"
+                android:textAppearance="?android:attr/textAppearanceSmall" />
+
+            <TextView
+                android:id="@+id/logClient"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Small Text"
+                android:textAppearance="?android:attr/textAppearanceSmall" />
+
+            <TextView
+                android:id="@+id/logtext"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:text="Text"
+                android:textAppearance="?android:attr/textAppearanceMedium" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/linlay3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentLeft="true"
+        android:background="@drawable/dividerrepeat"
+        android:orientation="vertical" >
+    </LinearLayout>
 
 </RelativeLayout>

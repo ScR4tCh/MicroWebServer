@@ -36,7 +36,7 @@ public abstract class BasicWebService implements WebService
 		database=DBManager.getInstance(ServerProperties.getInstance().getString(PropertyNames.DATABASES_PATH.toString()));
 	}
 	
-	
+	//for basic auth !
 	protected boolean checkToken(String token)
 	{
 		if(token==null)

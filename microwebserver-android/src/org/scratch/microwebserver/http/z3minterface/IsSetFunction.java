@@ -9,42 +9,25 @@
 
  * You should have received a copy of the GNU Lesser General Public License along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
-package org.scratch.microwebserver.http.zeminterface;
-
-import java.util.Map;
-
-import org.scratch.microwebserver.http.WebConnection;
+package org.scratch.microwebserver.http.z3minterface;
 
 import net.zeminvaders.lang.Interpreter;
 import net.zeminvaders.lang.SourcePosition;
+import net.zeminvaders.lang.UnsetVariableException;
+import net.zeminvaders.lang.runtime.ZemBoolean;
 import net.zeminvaders.lang.runtime.ZemObject;
-import net.zeminvaders.lang.runtime.ZemString;
 
-public class GetCookieFunction extends MicroWebServerFunction
+public class IsSetFunction extends MicroWebServerFunction
 {
-	private Map<String,String> cookie;
-	
-	public GetCookieFunction(WebConnection wb)
-	{
-		cookie=wb.getCookie();
-	}
 
 	@Override
-	public int compareTo(ZemObject o)
+	public ZemObject eval(Interpreter interpreter,SourcePosition pos)throws ZHTMLException
 	{
-		// TODO Auto-generated method stub
-		return 0;
-	}
-
-	@Override
-	public ZemObject eval(Interpreter interpreter,SourcePosition pos)
-	{
-		String key = interpreter.getVariable("key", pos).toZString().toString();
-		String value = cookie.get(key);
-		if(value!=null)
-			return new ZemString(cookie.get(key));
-		else
-			return Interpreter.NULL;
+		try
+		{
+			ZemObject zo = interpreter.getVariable("object", pos);
+			return ZemBoolean.valueOf(!zo.equals(Interpreter.NULL));
+		}catch(UnsetVariableException uve){return new ZemBoolean(false);}
 	}
 
 	@Override
@@ -56,7 +39,7 @@ public class GetCookieFunction extends MicroWebServerFunction
 	@Override
 	public String getParameterName(int index)
 	{
-		return "key";
+		return "object";
 	}
 
 }

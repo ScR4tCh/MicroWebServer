@@ -9,45 +9,52 @@
 
  * You should have received a copy of the GNU Lesser General Public License along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
-package org.scratch.microwebserver.http.zeminterface;
+package org.scratch.microwebserver.http.z3minterface;
 
-import org.scratch.microwebserver.http.WebConnection;
+import java.text.SimpleDateFormat;
 
 import net.zeminvaders.lang.Interpreter;
 import net.zeminvaders.lang.SourcePosition;
 import net.zeminvaders.lang.runtime.ZemObject;
+import net.zeminvaders.lang.runtime.ZemString;
 
-public class RedirectFunction extends MicroWebServerFunction
-{
-	private WebConnection wb;
-	
-	public RedirectFunction(WebConnection wb)
+public class TimeFormatFunction extends MicroWebServerFunction
+{	
+	public TimeFormatFunction()
 	{
-		this.wb=wb;
 	}
 
-	
 	@Override
-	public ZemObject eval(Interpreter interpreter,SourcePosition pos) throws ZHTMLException
+	public int compareTo(ZemObject o)
 	{
-		String location = interpreter.getVariable("location", pos).toZString().toString();
-        
-		wb.setHeaderField("Location",location);
-		wb.setStatusCode(307); //307 Temporary Redirect
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	@Override
+	public ZemObject eval(Interpreter interpreter,SourcePosition pos)
+	{
+		String format = interpreter.getVariable("format", pos).toZString().toString();
+		long millis = interpreter.getVariable("millis",pos).toNumber(pos).longValue();
 		
-		return Interpreter.NULL;
+		SimpleDateFormat sdf = new SimpleDateFormat(format);
+		
+		return new ZemString(sdf.format(millis));
 	}
 
 	@Override
 	public int getParameterCount()
 	{
-		return 1;
+		return 2;
 	}
 
 	@Override
 	public String getParameterName(int index)
 	{
-		return "location";
+		if(index==0)
+			return "millis";
+		else
+			return "format";
 	}
-	
+
 }

@@ -9,7 +9,7 @@
 
  * You should have received a copy of the GNU Lesser General Public License along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
-package org.scratch.microwebserver.http.zeminterface;
+package org.scratch.microwebserver.http.z3minterface;
 
 import java.io.BufferedReader;
 import java.util.ArrayList;
@@ -55,6 +55,8 @@ public class ZHTMLZemInterpreter extends Interpreter
 	{
 		this.wb=wb;
 		
+		//TODO: wrap postdata !!!
+		
 		if(wb.getRequestMimeType()!=null && wb.getRequestMimeType().equals(BasicWebService.MIME_JSON))
 			symbolTable.put("jsoninput",wrapJson(wb.getPostData()));
 		else
@@ -77,11 +79,10 @@ public class ZHTMLZemInterpreter extends Interpreter
 		symbolTable.put("getGetValue",new GetValueFunction(this.wb));
 		symbolTable.put("hasPostData",ZemBoolean.valueOf(this.wb.hasPostData()));
 		symbolTable.put("hasGetData",ZemBoolean.valueOf(this.wb.hasGetData()));
-		symbolTable.put("loggedIn",new Gatekeeper(this.wb));
-		symbolTable.put("logIn",new LoginFunction(this.wb));
-		symbolTable.put("logOut",new LogoutFunction(this.wb));
 		symbolTable.put("isSet",new IsSetFunction());
 		symbolTable.put("redirect",new RedirectFunction(this.wb));
+		symbolTable.put("db_connect",new CreateDBConnectionFunction(this.wb));
+		symbolTable.put("db_query",new SQLQueryFunction());
 	}
 	
 	private ZemObject wrapJson(BufferedReader postData)
