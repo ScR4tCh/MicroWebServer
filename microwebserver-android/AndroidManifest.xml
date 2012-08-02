@@ -22,6 +22,7 @@
 
         <activity
             android:name=".MicrowebserverActivity"
+            android:launchMode="singleInstance"
             android:label="@string/app_name" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -31,11 +32,13 @@
         </activity>
         <activity
             android:name=".MicroWebServerSettingsActivity"
+            android:launchMode="singleTop"
             android:label="@string/app_name_settings" 
         >
         </activity>
         <activity
             android:name=".LogSettingsActivity"
+            android:launchMode="singleTop"
             android:label="@string/app_name_logsettings"
             android:theme="@android:style/Theme.Dialog">
         </activity>

@@ -200,11 +200,16 @@ public class MicroWebServer implements Runnable
 					
 				} catch (IOException e)
 				  {
+					//only interesting if NOT recreating sockets (network change)
 					if(!recreate)
-						// TODO: LOG !
+					{
+						log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_ERROR,null,"IO Failure: "+e.getMessage());
 						e.printStackTrace();
+					}
 				  }
 			}
+			
+			log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_DEBUG,null,"Server Thread terminated");
 		}
 		else if(Thread.currentThread().equals(webworkerSSL))
 		{
@@ -221,11 +226,16 @@ public class MicroWebServer implements Runnable
 					
 				} catch (IOException e)
 				  {
+					//only interesting if NOT recreating sockets (network change)
 					if(!recreate)
-						// TODO: LOG !
+					{
+						log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_ERROR,null,"IO Failure: "+e.getMessage());
 						e.printStackTrace();
+					}
 				  }
 			}
+			
+			log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_DEBUG,null,"SSL Server Thread terminated");
 		}
 	}
 	
@@ -328,7 +338,10 @@ public class MicroWebServer implements Runnable
 	protected void log(long t,int level,WebConnection wc,String msg)
 	{
 		if(wbls.size()==0)
+		{
+			System.err.println("LOG: "+t+"("+level+") ->"+wc+"  '"+msg+"'");
 			preLogs .add(new LogEntry(t,level,msg,"",""));
+		}
 		
 		for(int i=0;i<wbls.size();i++)
 			wbls.elementAt(i).log(t,level,(wc!=null)?wc.getRequestingAddr():"",(wc!=null)?wc.getRequest():"",msg);

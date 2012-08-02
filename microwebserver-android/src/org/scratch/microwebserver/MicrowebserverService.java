@@ -162,11 +162,14 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 				
 				log(server.fetchPreLogs());
 				startUp(true);
-				createNotification("serving ...");
 				
 				//wake lock  --- configurable ?
 				wakeLock = ((PowerManager)getSystemService(Context.POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"microwebserver wakelock");
 				wakeLock.acquire();
+				
+				//aquire wifi lock (if configured)
+				
+				createNotification("serving ...");
 			}
 			catch(Exception e)
 			{
@@ -254,11 +257,15 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 	
 	private void createNotification(final String msg)
 	{
-		Intent nIntent=new Intent(getBaseContext(),MicrowebserverActivity.class);
-		nIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-
-		notificationIntent=PendingIntent.getActivity(this,0,nIntent,PendingIntent.FLAG_UPDATE_CURRENT);
+		Context ctx = this.getApplicationContext();
+		Intent intent = new Intent(ctx, MicrowebserverActivity.class);
+		intent.setFlags(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT | Intent.FLAG_ACTIVITY_NEW_TASK);
 		
+		//Intent nIntent=new Intent(getBaseContext(),MicrowebserverActivity.class);
+		//nIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+
+		//notificationIntent=PendingIntent.getActivity(this,0,nIntent,PendingIntent.FLAG_UPDATE_CURRENT);
+		notificationIntent=PendingIntent.getActivity(this,0,intent,PendingIntent.FLAG_UPDATE_CURRENT);
 		notificationBuilder.setTicker("service started").setSmallIcon(R.drawable.ic_launcher).setOngoing(true).setContentTitle("MicroWebServer").setContentText(msg).setContentIntent(notificationIntent);
 		
 		mNotificationManager.notify(APPICON_ID,notificationBuilder.getNotification());
@@ -267,7 +274,6 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 	public void onCreate()
 	{
 		super.onCreate();
-		
 		networkChangedReceiver = new ConnectionChangeReceiver();
 		IntentFilter filter = new IntentFilter();
 		filter.addAction(android.net.ConnectivityManager.CONNECTIVITY_ACTION);
@@ -279,12 +285,17 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 		
 		mNotificationManager=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
 		notificationBuilder = new NotificationCompat.Builder(this);
+		notificationBuilder.setOngoing(true);
+		notificationBuilder.setAutoCancel(false);
 		
 		lea=new LogEntryAdapter(startTime, 86400000); //24h history
+		
+		log(System.currentTimeMillis(),LOGLEVEL_INFO,"","","Service started");
 	}
 	
 	public void onDestroy()
 	{
+		log(System.currentTimeMillis(),LOGLEVEL_INFO,"","","Service destroyed");
 		unregisterReceiver(networkChangedReceiver);
 		super.onDestroy();
 	}
@@ -316,6 +327,8 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 	@Override
 	public void startUp(boolean started)
 	{
+		log(System.currentTimeMillis(),LOGLEVEL_INFO,"","","Server startup");
+		
 		for(int i=0;i<listeners.size();i++)
 			listeners.elementAt(i).startUp(started);
 	}
@@ -323,6 +336,8 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 	@Override
 	public void shutDown(boolean shutDown)
 	{
+		log(System.currentTimeMillis(),LOGLEVEL_INFO,"","","Server shutdown");
+		
 		for(int i=0;i<listeners.size();i++)
 			listeners.elementAt(i).shutDown(shutDown);
 	}
