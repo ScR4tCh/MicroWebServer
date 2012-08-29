@@ -7,11 +7,11 @@
 	<classpathentry kind="lib" path="libs/android-support-v4.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/android-file-chooser"/>
 	<classpathentry kind="lib" path="/android-file-chooser/bin/classes"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/com_viewpagerindicator"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/Z3MScript"/>
 	<classpathentry exported="true" kind="lib" path="/Z3MScript/bin"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/json-fork"/>
 	<classpathentry exported="true" kind="lib" path="/json-fork/bin"/>
 	<classpathentry kind="lib" path="libs/sqldroid-0.3.0.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/viewpager-indicator"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>
