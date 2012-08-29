@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.Vector;
 
 import org.scratch.microwebserver.MicrowebserverService.MicrowebserverServiceBinder;
+import org.scratch.microwebserver.http.WebService;
 import org.scratch.microwebserver.properties.PropertyNames;
 
 import com.viewpagerindicator.TitlePageIndicator;
@@ -74,9 +75,8 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
     
     protected void connectService()
 	{
-		Intent serviceIntent=new Intent(this.getApplicationContext(),MicrowebserverService.class);
-		startService(serviceIntent);
-
+    	Intent serviceIntent=new Intent(this.getApplicationContext(),MicrowebserverService.class);
+		
 		sconn=new ServiceConnection()
 		{
 
@@ -102,7 +102,7 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 					//logList=(ListView)findViewById(R.id.logList);
 					logList.setAdapter(lea);
 					
-					logList.post(
+					runOnUiThread(
 									new Runnable()
 									{
 										public void run()
@@ -160,7 +160,7 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 					
 					if(binder.isServerUp())
 			    	{
-			    		statusImage.post(
+			    		runOnUiThread(
 								new Runnable()
 								{
 									public void run()
@@ -174,7 +174,7 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 			    	}
 			    	else
 			    	{
-			    		statusImage.post(
+			    		runOnUiThread(
 								new Runnable()
 								{
 									public void run()
@@ -199,6 +199,8 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 			}
 
 		};
+		
+		startService(serviceIntent);
 
 		if(!bindService(serviceIntent,sconn,BIND_AUTO_CREATE))
 		{
@@ -499,7 +501,7 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
               switch(position)
               {
             	  case 0:	return "Logs";
-            	  case 1:	return "Stuff";
+            	  case 1:	return "Services";
               }
               
               return null;
@@ -528,7 +530,12 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 		}
 	}
 
-	
+	@Override
+	public void webServiceAdded(WebService service)
+	{
+		// TODO Auto-generated method stub
+		
+	}
 
 
 }

@@ -17,12 +17,18 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.sql.SQLException;
 import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Vector;
 
 import org.scratch.microwebserver.data.DBManager;
 import org.scratch.microwebserver.data.DatabaseManagerException;
 import org.scratch.microwebserver.http.MicroWebServer;
 import org.scratch.microwebserver.http.MicroWebServerListener;
+import org.scratch.microwebserver.http.WebConnection;
+import org.scratch.microwebserver.http.WebService;
+import org.scratch.microwebserver.http.WebServiceException;
+import org.scratch.microwebserver.http.WebServiceReply;
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
 import org.scratch.microwebserver.util.MimeDetector;
@@ -35,7 +41,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Binder;
+import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Message;
+import android.os.Messenger;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
 import android.support.v4.app.NotificationCompat;
@@ -290,6 +300,8 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 		
 		lea=new LogEntryAdapter(startTime, 86400000); //24h history
 		
+		startForeground(APPICON_ID,notificationBuilder.getNotification());
+		
 		log(System.currentTimeMillis(),LOGLEVEL_INFO,"","","Service started");
 	}
 	
@@ -323,6 +335,14 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 				listeners.elementAt(i).log(le);
 		}
 	}
+	
+	@Override
+	public int onStartCommand(Intent intent, int flags, int startId)
+	{
+		 // We want this service to continue running until it is explicitly
+		 // stopped, so return sticky.
+		 return START_STICKY;
+	}
 
 	@Override
 	public void startUp(boolean started)
@@ -349,4 +369,74 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 			listeners.elementAt(i).recreate(b,addr);
 	}
 
+	@Override
+	public void serviceAdded(WebService service)
+	{
+		for(int i=0;i<listeners.size();i++)
+			listeners.elementAt(i).webServiceAdded(service);
+	}
+
+	
+	
+	
+	//messenger
+	public final int MSG_REGISTER_SERVICE = 0x531;
+	public final int MSG_INVOKE_SERVICE = 0x532;
+	public final int MSG_SERVICE_REPLY = 0x533;
+	public final int MSG_UNREGISTER_SERVICE = 0x530;
+	
+	private Map<Messenger,WebService> remoteServices = new HashMap<Messenger,WebService>();
+	
+	private final Messenger mMessenger = new Messenger(new IncomingHandler());
+	
+	class IncomingHandler extends Handler
+	{
+	        @Override
+	        public void handleMessage(Message msg)
+	        {
+	            switch (msg.what)
+	            {
+	                case MSG_REGISTER_SERVICE:
+	                	
+	                	/**
+	                	 * The following attrs must be passed :
+	                	 * 
+	                	 * String[] input_mime - (accepted mimetypes)
+	                	 * String output_mime  - (output mimetype)
+	                	 * boolean postdata	   - (is postdata accepted ?)
+	                	 * String group_alias  - "servicegroup" alias i.e. http://<serveraddr>/group_alias/....
+	                	 * String service_name - service name i.e. http://<serveraddr>/group_alias/servicename
+	                	 */
+	                	
+	                	Bundle b = msg.getData();
+	                	
+	                	if(b.containsKey("input_mime") && b.containsKey("output_mime") && b.containsKey("postdata") && b.containsKey("ppc"))
+	                	{
+//	                		WebService rs = new WebServ
+	                	}
+	                	else
+	                	{
+	                		
+	                	}
+	                	
+	                    break;
+//	                case MSG_UNREGISTER_SERVICE:
+//	                    mValue = msg.arg1;
+//	                    for (int i=mClients.size()-1; i>=0; i--) {
+//	                        try {
+//	                            mClients.get(i).send(Message.obtain(null,
+//	                                    MSG_SET_VALUE, mValue, 0));
+//	                        } catch (RemoteException e) {
+//	                            // The client is dead.  Remove it from the list;
+//	                            // we are going through the list from back to front
+//	                            // so this is safe to do inside the loop.
+//	                            mClients.remove(i);
+//	                        }
+//	                    }
+//	                    break;
+	                default:
+	                    super.handleMessage(msg);
+	            }
+	        }
+	 }
 }

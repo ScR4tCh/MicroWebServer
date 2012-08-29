@@ -25,4 +25,5 @@ public interface MicroWebServerListener
 	public void startUp(boolean started);
 	public void shutDown(boolean shutDown);
 	public void recreate(boolean b,Vector<String> addr);
+	public void serviceAdded(WebService service);
 }
