@@ -1,18 +1,18 @@
 package org.scratch.microwebserver;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.scratch.microwebserver.MicrowebserverService.IncomingHandler;
 import org.scratch.microwebserver.http.WebConnection;
 import org.scratch.microwebserver.http.WebService;
 import org.scratch.microwebserver.http.WebServiceException;
 import org.scratch.microwebserver.http.WebServiceReply;
 import org.scratch.microwebserver.http.WebServices;
+import org.scratch.microwebserver.messagebinder.MessageTypes;
 
 import android.os.Bundle;
 import android.os.Message;
@@ -27,8 +27,14 @@ public class RemoteWebService implements WebService
 	private final boolean post;
 	private final String groupalias;
 	private final String name;
+	private final IncomingHandler handler;
 	
-	public RemoteWebService(Messenger msgs,String[] inmimetypes,String outmimetype,boolean post,String groupalias,String name)
+	private volatile WebServiceReply wsr;
+	
+	
+	public Object replyLock = new Object();
+	
+	public RemoteWebService(IncomingHandler handler, Messenger msgs,String[] inmimetypes,String outmimetype,boolean post,String groupalias,String name)
 	{
 		//TODO: check if the groupalias is acceptable (at least, there should be only ONE per connecting app !)
 		
@@ -38,12 +44,15 @@ public class RemoteWebService implements WebService
 		this.post=post;
 		this.groupalias=groupalias;
 		this.name=name;
+		
+		this.handler=handler;
 	}
 
 	@Override
 	public String getUri()
 	{
-		return null;
+		//return "groupalias", too ?
+		return name;
 	}
 
 	@Override
@@ -74,13 +83,27 @@ public class RemoteWebService implements WebService
 			}catch(IOException ioe){/*TODO: HANDLE !*/}
 		}
 		
+		//TODO:set cookies / session data ???
+		
 		//better do it threaded ?
 		Message im = new Message();
+		handler.registerPendingReply(msgs,hashCode());
+		im.what=MessageTypes.MSG_INVOKE_SERVICE.ordinal();
 		im.setData(data);
 		
 		try
 		{
 			msgs.send(im);
+			try
+			{
+				replyLock.wait(2000);
+			}
+			catch(InterruptedException e)
+			{
+				// TODO: Handle !
+				e.printStackTrace();
+			} //wait two seconds
+			
 		}
 		catch(RemoteException e)
 		{
@@ -89,7 +112,12 @@ public class RemoteWebService implements WebService
 		
 		
 		// TODO Auto-generated method stub
-		return null;
+		return wsr;
+	}
+	
+	public void setReply(WebServiceReply wsr)
+	{
+		this.wsr=wsr;
 	}
 
 	@Override

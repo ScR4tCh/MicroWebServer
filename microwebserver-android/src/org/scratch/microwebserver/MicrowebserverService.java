@@ -18,17 +18,18 @@ import java.net.SocketException;
 import java.sql.SQLException;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.Vector;
 
 import org.scratch.microwebserver.data.DBManager;
 import org.scratch.microwebserver.data.DatabaseManagerException;
 import org.scratch.microwebserver.http.MicroWebServer;
 import org.scratch.microwebserver.http.MicroWebServerListener;
-import org.scratch.microwebserver.http.WebConnection;
 import org.scratch.microwebserver.http.WebService;
-import org.scratch.microwebserver.http.WebServiceException;
-import org.scratch.microwebserver.http.WebServiceReply;
+import org.scratch.microwebserver.http.WebServices;
+import org.scratch.microwebserver.messagebinder.MessageTypes;
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
 import org.scratch.microwebserver.util.MimeDetector;
@@ -380,25 +381,20 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 	
 	
 	//messenger
-	public final int MSG_REGISTER_SERVICE = 0x531;
-	public final int MSG_INVOKE_SERVICE = 0x532;
-	public final int MSG_SERVICE_REPLY = 0x533;
-	public final int MSG_UNREGISTER_SERVICE = 0x530;
 	
-	private Map<Messenger,WebService> remoteServices = new HashMap<Messenger,WebService>();
-	
+	private Map<Messenger,Set<RemoteWebService>> remoteServices = new HashMap<Messenger,Set<RemoteWebService>>();
 	private final Messenger mMessenger = new Messenger(new IncomingHandler());
 	
 	class IncomingHandler extends Handler
 	{
+			private final Map<Messenger,Integer> resultsPending = new HashMap<Messenger,Integer>();
 	        @Override
 	        public void handleMessage(Message msg)
 	        {
-	            switch (msg.what)
-	            {
-	                case MSG_REGISTER_SERVICE:
-	                	
-	                	/**
+	        	if(msg.what==MessageTypes.MSG_REGISTER_SERVICE.ordinal())
+	        	{
+	        		
+	        			/**
 	                	 * The following attrs must be passed :
 	                	 * 
 	                	 * String[] input_mime - (accepted mimetypes)
@@ -412,31 +408,38 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 	                	
 	                	if(b.containsKey("input_mime") && b.containsKey("output_mime") && b.containsKey("postdata") && b.containsKey("ppc"))
 	                	{
-//	                		WebService rs = new WebServ
+	                		String[] input_mime = b.getStringArray("input_mime");
+	                		String output_mime = b.getString("output_mime");
+	                		boolean postdata = b.getBoolean("postdata");
+	                		String group_alias = b.getString("group_alias");
+	                		String service_name = b.getString("service_name");
+	                		
+	                		RemoteWebService rws = new RemoteWebService(this,mMessenger,input_mime,output_mime,postdata,group_alias,service_name);
+	                		
+	                		if(!remoteServices.containsKey(msg.replyTo))
+	                		{
+	                			remoteServices.put(msg.replyTo,new HashSet<RemoteWebService>());
+	                		}
+	                		
+	                		WebServices.getInstance().registerService(group_alias,rws.getUri(),rws);
 	                	}
 	                	else
 	                	{
-	                		
+	                		//handle ...
 	                	}
-	                	
-	                    break;
-//	                case MSG_UNREGISTER_SERVICE:
-//	                    mValue = msg.arg1;
-//	                    for (int i=mClients.size()-1; i>=0; i--) {
-//	                        try {
-//	                            mClients.get(i).send(Message.obtain(null,
-//	                                    MSG_SET_VALUE, mValue, 0));
-//	                        } catch (RemoteException e) {
-//	                            // The client is dead.  Remove it from the list;
-//	                            // we are going through the list from back to front
-//	                            // so this is safe to do inside the loop.
-//	                            mClients.remove(i);
-//	                        }
-//	                    }
-//	                    break;
-	                default:
-	                    super.handleMessage(msg);
-	            }
+	        	}
+	        	else if(msg.what==MessageTypes.MSG_SERVICE_REPLY.ordinal())
+	        	{
+	        		
+	        	}
+	        	else
+	        	{
+	        		super.handleMessage(msg);
+	        	}
 	        }
+
+			public void registerPendingReply(Messenger msgs,int hashCode)
+			{
+			}
 	 }
 }

@@ -11,8 +11,12 @@
  */
 package org.scratch.microwebserver.http;
 
-public class WebServiceReply
+import java.io.Serializable;
+
+public class WebServiceReply implements Serializable
 {
+	private static final long serialVersionUID=-2868172616086413054L;
+	
 	protected String mime;
 	protected long date;
 	protected long length;
