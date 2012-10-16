@@ -132,8 +132,8 @@ public class GetUsersService extends BasicWebService
 				
 				ret.put(djo);
 			}
-			
-			rret.setData(new StringBuffer(ret.toString()));
+						
+			rret.setData(ret.toString().getBytes());
 			rret.setMime(MIME_JSON);
 			rret.setLength(ret.toString().getBytes().length);
 			rret.setDate(System.currentTimeMillis());

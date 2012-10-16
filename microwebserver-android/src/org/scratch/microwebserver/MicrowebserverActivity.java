@@ -56,9 +56,14 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
     private TextView statusText,socketInfo;
     
     //view pager views
+    //logs (main)
     private ListView logList;
+    //services
+    private ListView serviceList;
+    
     
     private LogEntryAdapter lea;
+    private ServiceAdapter sea;
         
 	@Override
     public void onCreate(Bundle savedInstanceState)
@@ -69,6 +74,8 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
         
         logList = new ListView(this);
         logList.setTranscriptMode(ListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
+        
+        serviceList = new ListView(this);
 
         connectService();
     }
@@ -111,6 +118,13 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 										}
 									}
 								);
+					
+					Vector<WebService> wss = new Vector<WebService>();
+					//add remote AND local (TODO !)
+					wss.addAll(binder.getRegisteredRemoteWebServices());
+					
+					sea = new ServiceAdapter(getPackageManager(),wss);
+					serviceList.setAdapter(sea);
 					
 					//pager
 					pager = (ViewPager)findViewById(R.id.pager);
@@ -431,13 +445,8 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
                 	case 0:	 ((ViewPager) collection).addView(logList,0);
                 			 return logList;
 
-                	case 1:	 TextView tv = new TextView(getApplicationContext());
-			                 tv.setText("WIP " + position);
-			                 tv.setTextSize(30);
-			                    
-			                 ((ViewPager) collection).addView(tv,0);
-			                    
-			                 return tv;
+                	case 1:	 ((ViewPager) collection).addView(serviceList,0);
+       			             return serviceList;
 			                 
 			        default: System.err.println("WAHT THE FUCK ???");
 			        		 break;
@@ -531,10 +540,31 @@ public class MicrowebserverActivity extends FragmentActivity implements OnClickL
 	}
 
 	@Override
-	public void webServiceAdded(WebService service)
+	public void webServiceAdded(final WebService service)
 	{
-		// TODO Auto-generated method stub
-		
+		this.runOnUiThread(
+				new Runnable()
+				{
+					public void run()
+					{
+						sea.addService(service);
+					}
+				}
+		);
+	}
+	
+	@Override
+	public void webServiceRemoved(final WebService service)
+	{
+		this.runOnUiThread(
+				new Runnable()
+				{
+					public void run()
+					{
+						sea.removeService(service);
+					}
+				}
+		);
 	}
 
 

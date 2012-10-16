@@ -21,49 +21,73 @@ import android.os.RemoteException;
 
 public class RemoteWebService implements WebService
 {
-	private final Messenger msgs;
+	private final Messenger remmsgs;
+	private final Messenger srvmsgs;
+	private final String packageName;
 	private final Set<String> inmimetypes;
 	private final String outmimetype;
-	private final boolean post;
+	private final int methods;
 	private final String groupalias;
 	private final String name;
 	private final IncomingHandler handler;
 	
+	//is the webserver permitted to invoke this service ???
+	//NOTE : do we need a better security management here ?!?
+	private boolean permit = false;
+	
 	private volatile WebServiceReply wsr;
 	
-	
-	public Object replyLock = new Object();
-	
-	public RemoteWebService(IncomingHandler handler, Messenger msgs,String[] inmimetypes,String outmimetype,boolean post,String groupalias,String name)
+		
+	public RemoteWebService(String packageName,IncomingHandler incomingHandler, Messenger remmsgs,Messenger srvmsgs,String[] inmimetypes,String outmimetype,int methods,String groupalias,String name)
 	{
 		//TODO: check if the groupalias is acceptable (at least, there should be only ONE per connecting app !)
+		//		 perhaps it will be a bit "dirty" to use full classname ut this would be relatively straight down the android road ;)
+		this.packageName=packageName;
 		
-		this.msgs=msgs;
+		this.remmsgs=remmsgs;
+		this.srvmsgs=srvmsgs;
 		this.inmimetypes=new HashSet<String>(Arrays.asList(inmimetypes));
 		this.outmimetype=outmimetype;
-		this.post=post;
+		this.methods=methods;
 		this.groupalias=groupalias;
 		this.name=name;
 		
-		this.handler=handler;
+		this.handler=incomingHandler;
+	}
+	
+	public void permit(boolean b)
+	{
+		this.permit=b;
+	}
+	
+	public String getPackageName()
+	{
+		return packageName;
 	}
 
 	@Override
 	public String getUri()
 	{
-		//return "groupalias", too ?
+		//return "groupalias", too ?No need for it now ,but check it later !!h!!!
 		return name;
 	}
 
 	@Override
 	public WebServiceReply invoke(String[] ppc,int method,String mime,WebConnection wb) throws WebServiceException
 	{
+		if(!permit)
+			throw new WebServiceException(403,"Not Permitted !");
+		
+		wsr=null;
+		
 		Bundle data = new Bundle();
 		data.putStringArray("ppc",ppc);
+		
 		if(method==WebServices.METHOD_POST)
 			data.putBoolean("post",true);
 		else
 			data.putBoolean("post",false);
+		
 		data.putString("mime",mime);
 		if(method==WebServices.METHOD_POST)
 		{
@@ -85,23 +109,41 @@ public class RemoteWebService implements WebService
 		
 		//TODO:set cookies / session data ???
 		
-		//better do it threaded ?
 		Message im = new Message();
-		handler.registerPendingReply(msgs,hashCode());
+		
+		int l= (int)(System.currentTimeMillis()/1000);
+		
+		final RemoteServiceCall call = new RemoteServiceCall(l,this,wb);
+		
+		im.arg1=l;
+		handler.registerPendingReply(call);
 		im.what=MessageTypes.MSG_INVOKE_SERVICE.ordinal();
 		im.setData(data);
+		im.replyTo=srvmsgs;
 		
 		try
 		{
-			msgs.send(im);
+			remmsgs.send(im);
 			try
 			{
-				replyLock.wait(2000);
+				System.err.println("WAITING : "+getUri());
+				System.err.println(Thread.currentThread().toString());
+				
+				synchronized(Thread.currentThread())
+				{
+					Thread.currentThread().wait(2000);	//max 2 seconds :: TODO: make configurable !
+					if(wsr==null)
+					{
+						throw new WebServiceException(500,"Timeout for service "+getUri());
+					}
+				}
 			}
 			catch(InterruptedException e)
 			{
-				// TODO: Handle !
-				e.printStackTrace();
+				System.err.println("ABORTED WAIT : "+getUri());
+				handler.unregisterPendingReply(call);
+				throw new WebServiceException(500,"Timeout for service "+getUri());
+				
 			} //wait two seconds
 			
 		}
@@ -109,28 +151,21 @@ public class RemoteWebService implements WebService
 		{
 			//TODO: HANDLE !
 		}
-		
+		System.err.println("POSSIBLY POSITIVE : "+getUri());
 		
 		// TODO Auto-generated method stub
 		return wsr;
 	}
 	
-	public void setReply(WebServiceReply wsr)
+	protected void setReply(WebServiceReply wsr)
 	{
 		this.wsr=wsr;
 	}
-
+	
 	@Override
 	public boolean acceptsMethod(int method)
 	{
-		if(post && method==WebServices.METHOD_POST)
-			return true;
-		else if(!post && method==WebServices.METHOD_POST)
-			return false;
-		
-		//always accept GET ?
-		
-		return true;
+		return (methods&method)==method;
 	}
 
 	@Override
@@ -143,6 +178,11 @@ public class RemoteWebService implements WebService
 	public String getMime()
 	{
 		return outmimetype;
+	}
+
+	public boolean isPermitted()
+	{
+		return permit;
 	}
 
 }

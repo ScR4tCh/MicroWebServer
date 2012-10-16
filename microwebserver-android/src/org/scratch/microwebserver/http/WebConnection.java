@@ -113,7 +113,6 @@ public class WebConnection
 	private OutputStream out;
 	private StringBuffer outBuffer = new StringBuffer();
 	private DBManager database;
-	private WebServices services = WebServices.getInstance();
 	
 	//reply specific
 	private SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss z");
@@ -411,17 +410,17 @@ public class WebConnection
 		}
 		else
 		{
-			if(services.exists(params[1]))
+			if(server.getServices().exists(params[1]))
 			{
 				try
 				{
-					WebServiceReply ret = services.invoke(params[1],rt/*post?WebServices.METHOD_POST:WebServices.METHOD_GET*/,mimetype,this);
+					WebServiceReply ret = server.getServices().invoke(params[1],rt/*post?WebServices.METHOD_POST:WebServices.METHOD_GET*/,mimetype,this);
 					
 					
 					if(ret==null || (ret!=null && ret.getData()==null))
 						sendOK(0,new StringBuffer(),null,true);
 					else
-						sendOK(ret.getLength(),ret.getData(),ret.getMime(),true);
+						sendOK(ret.getData(),ret.getMime(),true);
 				}
 				catch(WebServiceException wse)
 				{

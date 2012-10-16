@@ -58,6 +58,8 @@ public class MicroWebServer implements Runnable
 	
 	private volatile boolean recreate=false;
 	
+	private WebServices services = WebServices.getInstance();
+	
 	//listen !
 	private Vector<MicroWebServerListener> wbls = new Vector<MicroWebServerListener>();
 	private Vector<LogEntry> preLogs = new Vector<LogEntry>();
@@ -459,6 +461,16 @@ public class MicroWebServer implements Runnable
 		}
 		
 		return null;
+	}
+	
+	public WebServices getServices()
+	{
+		return services;
+	}
+	
+	public void overrideWebServices(final WebServices services)
+	{
+		this.services.replace(services);
 	}
 
 }

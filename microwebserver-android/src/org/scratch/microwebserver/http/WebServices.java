@@ -12,6 +12,7 @@
 package org.scratch.microwebserver.http;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 import org.scratch.microwebserver.data.DatabaseManagerException;
@@ -66,20 +67,16 @@ public class WebServices
 	//for now as simple as possible
 	public void registerService(String serviceurl,String p,WebService ws)
 	{
-		if(services.containsKey(serviceurl))
+		if(!services.containsKey(serviceurl))
 		{
+			services.put(serviceurl,new HashMap<String,WebService>());
+		}
+		
 			services.get(serviceurl).put(p,ws);
-		}
-		else
-		{
-			Map<String,WebService> sm = new HashMap<String,WebService>();
-			sm.put(p,ws);
-			services.put(serviceurl,sm);
-		}
 	}
 
 	public boolean exists(String string)
-	{
+	{		
 		//should not be null !
 		String[] p;
 		
@@ -95,7 +92,7 @@ public class WebServices
 				return true;
 			}
 		}
-		
+				
 		return false;
 	}
 	
@@ -136,5 +133,26 @@ public class WebServices
 			}
 		}
 		
+	}
+	
+	public void dumpServices()
+	{
+		Iterator<String> servicesIt = services.keySet().iterator();
+		while(servicesIt.hasNext())
+		{
+			String sv = servicesIt.next();
+			System.err.println(sv+"\n========================");
+			
+			Iterator svsi = services.get(sv).keySet().iterator();
+			while(svsi.hasNext())
+			{
+				System.err.println("\t> "+svsi.next());
+			}
+		}
+	}
+
+	public static void replace(final WebServices services2)
+	{
+		instance=services2;
 	}
 }

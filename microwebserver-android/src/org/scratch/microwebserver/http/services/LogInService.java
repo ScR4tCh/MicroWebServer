@@ -72,7 +72,7 @@ public class LogInService extends BasicWebService
 					ret.put("token",token);
 					
 					WebServiceReply rret = new WebServiceReply();
-					rret.setData(new StringBuffer(ret.toString()));
+					rret.setData(ret.toString().getBytes());
 					rret.setLength(ret.toString().getBytes().length);
 					rret.setMime(MIME_JSON);
 					rret.setDate(System.currentTimeMillis());

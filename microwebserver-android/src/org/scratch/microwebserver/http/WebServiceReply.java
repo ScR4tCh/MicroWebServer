@@ -21,7 +21,7 @@ public class WebServiceReply implements Serializable
 	protected long date;
 	protected long length;
 	
-	protected StringBuffer data;
+	protected byte[] data;
 
 	public final String getMime()
 	{
@@ -53,13 +53,15 @@ public class WebServiceReply implements Serializable
 		this.length=length;
 	}
 
-	public final StringBuffer getData()
+	public final byte[] getData()
 	{
 		return data;
 	}
 
-	public final void setData(StringBuffer data)
+	public final void setData(byte[] data)
 	{
+		if(data!=null)
+			length=data.length;
 		this.data=data;
 	}
 	

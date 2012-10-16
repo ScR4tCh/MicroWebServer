@@ -11,4 +11,5 @@ public interface ServiceListener
 	public void shutDown(boolean shutDown);
 	public void recreate(boolean b,Vector<String> addr);
 	public void webServiceAdded(WebService service);
+	public void webServiceRemoved(WebService service);
 }
