@@ -15,7 +15,7 @@ A databas manager (managa a bunch of sqlite databases with "user" rights) is inc
 
 There is also the possebility to add "static path" webservices (like a REST interface).
 
-NEW
+####NEW
 ***
 "RemoteWebServices" may now be deployed into the Server using the microwebserver-messagebinder library. Any App or Service may add "services" which can be called via http :).
 For an simple example take a look at microwebserver-remotetest. Please note, that these remote services must first be enabled inside the Microwebserver App (services tab),
@@ -30,7 +30,7 @@ Future plans are to add custom webroots for remote services to be able to serve 
 PHP support *could* possibly be added through SL4A (https://code.google.com/p/android-scripting/ , http://phpforandroid.net/), although it might not be very useful because of missing mysql/gd/.. ?!?
 I will do some "researches" for what might be possible. 
 
-The following projects are used/referenced within the code
+####The following projects are used/referenced within the code
 ***
 
 - json-fork (packe containing renamed org.json classes [for android compability reasons], source will be added soon)
