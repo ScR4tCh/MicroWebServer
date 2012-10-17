@@ -2,6 +2,7 @@ package org.scratch.microwebserver;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -12,6 +13,7 @@ import org.scratch.microwebserver.http.WebService;
 import org.scratch.microwebserver.http.WebServiceException;
 import org.scratch.microwebserver.http.WebServiceReply;
 import org.scratch.microwebserver.http.WebServices;
+import org.scratch.microwebserver.messagebinder.InvocationFieldTypes;
 import org.scratch.microwebserver.messagebinder.MessageTypes;
 
 import android.os.Bundle;
@@ -41,7 +43,7 @@ public class RemoteWebService implements WebService
 	public RemoteWebService(String packageName,IncomingHandler incomingHandler, Messenger remmsgs,Messenger srvmsgs,String[] inmimetypes,String outmimetype,int methods,String groupalias,String name)
 	{
 		//TODO: check if the groupalias is acceptable (at least, there should be only ONE per connecting app !)
-		//		 perhaps it will be a bit "dirty" to use full classname ut this would be relatively straight down the android road ;)
+		//		 perhaps it will be a bit "dirty" to use full classname but this would be relatively straight down the android road ;)
 		this.packageName=packageName;
 		
 		this.remmsgs=remmsgs;
@@ -81,31 +83,13 @@ public class RemoteWebService implements WebService
 		wsr=null;
 		
 		Bundle data = new Bundle();
-		data.putStringArray("ppc",ppc);
+		data.putStringArray(InvocationFieldTypes.INVOKE_URI.getFieldName(),ppc);
 		
-		if(method==WebServices.METHOD_POST)
-			data.putBoolean("post",true);
-		else
-			data.putBoolean("post",false);
+		data.putInt(InvocationFieldTypes.INVOKE_METHOD.getFieldName(),method);
 		
-		data.putString("mime",mime);
-		if(method==WebServices.METHOD_POST)
-		{
-			try
-			{
-			 ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			 byte[] buffer = new byte[1024]; // Experiment with this value
-			 int bytesRead;
-
-			 while ((bytesRead = wb.getRawPostData().read(buffer)) != -1)
-			 {
-			    baos.write(buffer, 0, bytesRead);
-			 }
-			
-			 //assume that android does some optimization when marshalling ...
-			 data.putByteArray("postdata",baos.toByteArray());
-			}catch(IOException ioe){/*TODO: HANDLE !*/}
-		}
+		data.putString(InvocationFieldTypes.INVOKE_MIME.getFieldName(),mime);
+		
+		data.putByteArray(InvocationFieldTypes.INVOKE_POSTDATA.getFieldName(),wb.getRawPostData());
 		
 		//TODO:set cookies / session data ???
 		
@@ -159,6 +143,7 @@ public class RemoteWebService implements WebService
 	
 	protected void setReply(WebServiceReply wsr)
 	{
+		System.err.println("SET REPLY: "+wsr);
 		this.wsr=wsr;
 	}
 	

@@ -19,12 +19,13 @@ import org.scratch.microwebserver.data.DatabaseManagerException;
 import org.scratch.microwebserver.http.services.GetUsersService;
 import org.scratch.microwebserver.http.services.LogInService;
 import org.scratch.microwebserver.http.services.LogOutService;
+import org.scratch.microwebserver.messagebinder.MethodTypes;
 
 
 public class WebServices
 {
-	public static final int METHOD_GET=0;
-	public static final int METHOD_POST=1;
+	public static final int METHOD_GET=MethodTypes.GET.ordinal();
+	public static final int METHOD_POST=MethodTypes.POST.ordinal();
 	public static final int METHOD_HEAD=2;
 	
 	private static WebServices instance;
@@ -85,7 +86,7 @@ public class WebServices
 		else
 			p = string.split("/");
 		
-		if(services.containsKey(p[0]))
+		if(p.length>=2 && services.containsKey(p[0]))
 		{
 			if(services.get(p[0]).containsKey(p[1]))
 			{
@@ -98,41 +99,38 @@ public class WebServices
 	
 	public WebServiceReply invoke(String p,int method,String mime,WebConnection wb) throws WebServiceException
 	{
-		//System.err.println("invoking service: "+p+" with mime: "+mime);
+		System.err.println("invoking service: "+p+" with mime: "+mime);
 		//log ?!?
 		
 		if(!exists(p))
+		{
 			throw new WebServiceException(404,"Not found");
+		}
 		else
 		{
 			String[] pp;
-			
+				
 			if(p.startsWith("/"))
 				pp = p.substring(1).split("/");
 			else
 				pp = p.split("/");
-			
+				
 			WebService service = services.get(pp[0]).get(pp[1]);
-			
+				
 			if(!service.acceptsMethod(method))
 				throw new WebServiceException(405,"Method not allowed !");
-			
+				
 			if(method==METHOD_POST && !service.acceptsMime(mime))
 				throw new WebServiceException(425,"Unsupported Media Type !");
 			
 						
-			if(pp.length>2)
-			{
-				String[] ppc = new String[pp.length-2];
-				System.arraycopy(pp,2,ppc,0,ppc.length);
-				return service.invoke(ppc,method,mime,wb);
-			}
-			else
-			{
-				return service.invoke(null,method,mime,wb);
-			}
+			
+			String[] ppc = new String[pp.length/*-1*/];
+			
+			//TODO: before, we dropped the "group" using arraycopy(pp,1,ppc,0,ppc.length), check what would be better ...
+			System.arraycopy(pp,0,ppc,0,ppc.length);
+			return service.invoke(ppc,method,mime,wb);
 		}
-		
 	}
 	
 	public void dumpServices()

@@ -21,6 +21,8 @@ package org.scratch.microwebserver.http;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -29,6 +31,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.FileNameMap;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URLConnection;
 import java.net.URLDecoder;
@@ -51,6 +54,7 @@ import org.scratch.microwebserver.data.Cache;
 import org.scratch.microwebserver.data.DBManager;
 import org.scratch.microwebserver.data.DatabaseManagerException;
 import org.scratch.microwebserver.http.z3minterface.ZHTMLException;
+import org.scratch.microwebserver.messagebinder.InvocationFieldTypes;
 import org.scratch.microwebserver.properties.PropertyNames;
 import org.scratch.microwebserver.properties.ServerProperties;
 import org.scratch.microwebserver.util.Helper;
@@ -108,7 +112,8 @@ public class WebConnection
 	//connection specific
 	private MicroWebServer server;
 	protected Socket sock;
-	private BufferedReader in;
+	//private BufferedReader in;
+	private InputStream in;
 	private Map<String,String> getData = new HashMap<String,String>();
 	private OutputStream out;
 	private StringBuffer outBuffer = new StringBuffer();
@@ -129,6 +134,14 @@ public class WebConnection
 	private boolean keep_alive = false;
 	private volatile boolean processing=false;
 	
+	//reading
+	private static final int BUFFERSIZE=1024;
+	private long read=0;
+	private int bufferpos=0;
+	
+	//raw postdata
+	private ByteArrayOutputStream rawBytes = new ByteArrayOutputStream();
+	
 	
 	public WebConnection(final Socket sock,final MicroWebServer server)throws IOException
 	{
@@ -148,7 +161,8 @@ public class WebConnection
 		this.mimeDetect=server.getMimeDetector();
 		this.sock=sock;
 		this.sock.setSoTimeout(SOCKETTIMEOUT);
-		in=new BufferedReader(new InputStreamReader(sock.getInputStream()));
+//		in=new BufferedReader(new InputStreamReader(sock.getInputStream()));
+		in=sock.getInputStream();
 		out=new BufferedOutputStream(sock.getOutputStream());
 		
 		log(MicroWebServerListener.LOGLEVEL_DEBUG,"connection from: "+sock.getInetAddress());
@@ -162,10 +176,43 @@ public class WebConnection
 		boolean first=true;
 		
 		String buffer;
+		ByteArrayOutputStream buf=new ByteArrayOutputStream();
 		
+		
+		int r;
+		int n;
+				
 		//read http header
-		while((buffer=in.readLine())!=null && buffer.length()>0 && connected && !processing)
+		//while((buffer=in.readLine())!=null && buffer.length()>0 && connected && !processing)
+		while((r=in.read())!=-1 && connected && !processing )
 		{
+			//read one "ahead"
+			n=in.read();
+			
+			//search for a line
+			
+			//we only care about cr/lf combination !
+			
+			
+			if(r==13 && n==10)
+			{
+				buffer=new String(buf.toByteArray());
+				buf=new ByteArrayOutputStream();
+			}
+			//be tolerant even if this breaks RFC ? (java 1.6 HttpURLConnection does not bother ... so use as 
+			else if(r==10)
+			{
+				buffer=new String(buf.toByteArray());
+				buf=new ByteArrayOutputStream();
+				buf.write(n);
+			}
+			else
+			{
+				buf.write(r);
+				buf.write(n);
+				continue;
+			}
+			
 			if(first)
 			{
 				params=buffer.split("\\s");
@@ -212,6 +259,7 @@ public class WebConnection
 			}
 			else if(rt==WebServices.METHOD_POST && buffer.toLowerCase().startsWith("content-type:"))
 			{
+				System.err.println(buffer);
 				mimetype=buffer.substring(buffer.indexOf(':')+1,buffer.length()).trim();
 			}
 			else if(rt==WebServices.METHOD_POST && buffer.toLowerCase().startsWith("content-length:"))
@@ -275,6 +323,53 @@ public class WebConnection
 			
 			
 			header.add(buffer);
+		}
+		
+		if(rt==WebServices.METHOD_POST)
+		{		
+			try
+			{
+			 byte[] bbuffer = new byte[BUFFERSIZE]; // Experiment with this value
+			 int bytesRead=0;
+			 
+			 if(length==-1)
+			 {
+				 //will read until a timeout occurs
+				 while (  (r = sock.getInputStream().read(bbuffer)) != -1  )
+				 {
+				    rawBytes.write(bbuffer, 0, r);
+				    bytesRead+=r;
+				 }
+			 }
+			 else
+			 {					 
+				int bf = (int)(length/BUFFERSIZE); // how many buffers to be filled (an integer value should be enough !)
+				int lbs = (int)(length%BUFFERSIZE); //size of last buffer to be filled
+				
+				if(lbs>0)
+					bf++;
+								
+				for(int i=0;i<bf;i++)
+				{
+					if(lbs>0 && i==bf-1)
+					{
+						bbuffer = new byte[lbs];
+					}
+					
+					sock.getInputStream().read(bbuffer);
+					rawBytes.write(bbuffer);
+				}
+			 }
+			 
+			 rawBytes.flush();
+			
+			 System.err.println("POSTDATA length : "+rawBytes.size());
+			}
+			catch(IOException ioe)
+			{
+				ioe.printStackTrace();
+				/*TODO: HANDLE !*/
+			}
 		}
 		
 		log(MicroWebServerListener.LOGLEVEL_DEBUG,"HEADER:\n"+headOut(header));
@@ -751,12 +846,12 @@ public class WebConnection
 
 	public BufferedReader getPostData()
 	{
-		return in;
+		return new BufferedReader(new InputStreamReader(new ByteArrayInputStream(rawBytes.toByteArray())));
 	}
 	
-	public InputStream getRawPostData() throws IOException
+	public final byte[] getRawPostData()
 	{
-		return sock.getInputStream();
+		return rawBytes.toByteArray();
 	}
 	
 	public String getRequestMimeType()
@@ -979,5 +1074,22 @@ public class WebConnection
 		statuscode=200;
 		
 		header.clear();
+	}
+	
+	public static void main(String[] args)
+	{
+		try
+		{
+			ServerSocket ss = new ServerSocket(1234);
+			
+			Socket s = ss.accept();
+			WebConnection wb = new WebConnection(s,null);
+			wb.process();
+		}
+		catch(IOException e)
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 }

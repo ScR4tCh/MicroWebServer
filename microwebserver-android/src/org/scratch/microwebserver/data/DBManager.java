@@ -610,7 +610,7 @@ public class DBManager
 	
 	public void log(LogEntry e) throws SQLException
 	{
-		String insert = "INSERT INTO logs (time,level,request,remoteaddress,message) VALUES ("+e.getT()+","+e.getLevel()+",\""+e.getRequest()+"\",\""+e.getRemoteAddress()+"\",\""+e.getMessage()+"\")";
+		String insert = "INSERT INTO logs (time,level,request,remoteaddress,message) VALUES ("+e.getT()+","+e.getLevel()+",\""+e.getRequest()+"\",\""+e.getRemoteAddress()+"\",\""+(e.getMessage().replace("\"","\\\""))+"\")";
 		stmt.execute(insert);
 	}
 	

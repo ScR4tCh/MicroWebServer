@@ -17,10 +17,6 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.sql.SQLException;
 import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 import java.util.Vector;
 
 import org.scratch.microwebserver.data.DBManager;
@@ -196,7 +192,8 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 				if(server!=null)
 				{
 					MicrowebserverService.this.log(server.fetchPreLogs());
-					server.shutdown();
+					stopServer();
+					//server.shutdown();
 				}
 				
 				MicrowebserverService.this.log(System.currentTimeMillis(),MicroWebServerListener.LOGLEVEL_ERROR,"","","Failed to start server:\n"+e.getMessage());
@@ -464,6 +461,8 @@ public class MicrowebserverService extends Service implements MicroWebServerList
 		
 		for(int i=0;i<listeners.size();i++)
 			listeners.elementAt(i).shutDown(shutDown);
+		
+		
 	}
 
 	@Override

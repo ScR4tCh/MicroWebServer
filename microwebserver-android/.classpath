@@ -12,7 +12,7 @@
 	<classpathentry combineaccessrules="false" kind="src" path="/json-fork"/>
 	<classpathentry exported="true" kind="lib" path="/json-fork/bin"/>
 	<classpathentry kind="lib" path="libs/sqldroid-0.3.0.jar"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/viewpager-indicator"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/MicroWebServerMessageBinder"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/com_viewpagerindicator"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>

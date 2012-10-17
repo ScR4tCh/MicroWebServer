@@ -6,8 +6,11 @@ import android.os.RemoteException;
 
 public class ServiceManager
 {
-	public static int registerService(DispatchingClient dp,boolean postdata,String[] input_mime,String output_mime,String group_alias,String service_name) throws RemoteException
+	public static int registerService(DispatchingClient dp,int methods,String[] input_mime,String output_mime,String group_alias,String service_name) throws RemoteException
 	{
+		 if(dp==null || dp.getMessenger()==null)
+	        	return -1;
+		
 		//TODO: encode groupname/servicename to fit "url" std
 		
 		Message msg = new Message();
@@ -16,12 +19,12 @@ public class ServiceManager
         msg.replyTo = dp.getReplyMessenger();
         
         Bundle data = new Bundle();
-        data.putBoolean("postdata",postdata);
-        data.putStringArray("input_mime",input_mime);
-        data.putString("output_mime",output_mime);
-        data.putString("group_alias",group_alias);
-        data.putString("service_name",service_name);
-        data.putString("package_name",dp.getPackageName());
+        data.putInt(MessageData.SUPPORTED_METHODS.getFieldName(),methods);
+        data.putStringArray(MessageData.INPUT_MIMETYPES.getFieldName(),input_mime);
+        data.putString(MessageData.OUTPUT_MIMETYPE.getFieldName(),output_mime);
+        data.putString(MessageData.SERVICEGROUP_ALIAS.getFieldName(),group_alias);
+        data.putString(MessageData.SERVICE_NAME.getFieldName(),service_name);
+        data.putString(MessageData.PACKAGE_NAME.getFieldName(),dp.getPackageName());
         msg.setData(data);
         
         dp.getMessenger().send(msg);
